@@ -1,0 +1,11 @@
+# envirmonemt variables
+.env
+
+# data
+data/api_cooldowns.json
+
+# venv
+venv/
+
+# __pycache__
+__pycache__/
