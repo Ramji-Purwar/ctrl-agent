@@ -3,6 +3,7 @@
 
 # data
 data/api_cooldowns.json
+data/conversation.json
 
 # venv
 venv/
