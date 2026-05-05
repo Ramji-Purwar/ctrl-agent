@@ -1,4 +1,3 @@
-# api_pool.py
 import itertools
 import json
 import logging
@@ -59,18 +58,33 @@ def _is_rate_limit_error(err: str) -> bool:
     return any(kw in err for kw in rate_limit_keywords) and "validation" not in err
 
 
-def call_gemini(messages: list, tools=None):
+def call_gemini(messages: list, tools=None, key_index: int | None = None):
+    """
+    Returns: (response, key_index_used)
+    Pass key_index to lock to a specific key for multi-turn tool calls.
+    """
     cooldowns = _load_cooldowns()
     last_error = None
-    start = next(_key_cycle)
+    start = key_index if key_index is not None else next(_key_cycle)
 
     for i in range(len(GEMINI_KEYS)):
-        key = GEMINI_KEYS[(start + i) % len(GEMINI_KEYS)]
-        key_label = f"Key #{(start + i) % len(GEMINI_KEYS) + 1}"
+        # If locked to a specific key, only try that one
+        if key_index is not None:
+            idx = key_index
+        else:
+            idx = (start + i) % len(GEMINI_KEYS)
+
+        key = GEMINI_KEYS[idx]
+        key_label = f"Key #{idx + 1}"
 
         if not _is_available(key, cooldowns):
             remaining = int(cooldowns[key] - time.time())
             logging.warning(f"[APIPool] {key_label} is cooling down, {remaining}s left — skipping")
+            if key_index is not None:
+                # Locked key is on cooldown — try other keys
+                key_index = None
+                start = next(_key_cycle)
+                continue
             continue
 
         try:
@@ -90,7 +104,7 @@ def call_gemini(messages: list, tools=None):
             )
 
             logging.debug(f"[APIPool] {key_label} succeeded.")
-            return response
+            return response, idx
 
         except Exception as exc:
             err = str(exc).lower()
@@ -101,6 +115,10 @@ def call_gemini(messages: list, tools=None):
                 cooldowns[key] = time.time() + COOLDOWN_SECS
                 _save_cooldowns(cooldowns)
                 logging.warning(f"[APIPool] {key_label} rate limited; cooldown {COOLDOWN_SECS}s")
+                if key_index is not None:
+                    # Locked key rate limited — unlock and try others
+                    key_index = None
+                    start = next(_key_cycle)
                 continue
 
             raise

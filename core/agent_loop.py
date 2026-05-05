@@ -7,14 +7,14 @@ import logging
 MAX_TOOL_ITERATIONS = 15
 
 def run_agent(user_message: str) -> dict:
-
     history = load_history()
     history.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
     tools_used = []
+    locked_key = None  # lock to same key after first successful call
 
     for iteration in range(MAX_TOOL_ITERATIONS):
         try:
-            response = call_gemini(history, tools=GEMINI_TOOL_SCHEMAS)
+            response, locked_key = call_gemini(history, tools=GEMINI_TOOL_SCHEMAS, key_index=locked_key)
         except Exception as e:
             logging.error(f"[Agent][Iter {iteration}] Gemini call failed: {e}")
             return {
@@ -42,7 +42,7 @@ def run_agent(user_message: str) -> dict:
         tool_args = dict(fn_call.args)
 
         logging.info(f"[Agent][Iter {iteration}][Tool: {tool_name}] Args: {tool_args}")
-        history.append(types.Content(role="model", parts=[part]))
+        history.append(response.candidates[0].content)
         tools_used.append(tool_name)
 
         # Execute tool
@@ -64,11 +64,11 @@ def run_agent(user_message: str) -> dict:
         else:
             logging.info(f"[Agent][Iter {iteration}][Tool: {tool_name}] Success")
             history.append(types.Content(
-                role="user",
+                role="tool",
                 parts=[types.Part(
                     function_response=types.FunctionResponse(
                         name=tool_name,
-                        response=result
+                        response={"result": result}
                     )
                 )]
             ))
