@@ -1,3 +1,4 @@
+# api_pool.py
 import itertools
 import json
 import logging
@@ -14,13 +15,13 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 COOLDOWN_FILE = Path("data/api_cooldowns.json")
 COOLDOWN_SECS = 60
 
-# Cache clients so we don't reinstantiate on every call
 _clients: dict[str, genai.Client] = {}
-
-# Round-robin cycle so all keys share load equally
 _key_cycle = itertools.cycle(range(len(GEMINI_KEYS)))
 
 
@@ -54,11 +55,11 @@ def _is_available(key: str, cooldowns: dict) -> bool:
 
 
 def _is_rate_limit_error(err: str) -> bool:
-    rate_limit_keywords = ["rate", "quota", "exhaust", "resource_exhausted", "429"]
-    return any(kw in err for kw in rate_limit_keywords)
+    rate_limit_keywords = ["quota", "resource_exhausted", "429"]
+    return any(kw in err for kw in rate_limit_keywords) and "validation" not in err
 
 
-def call_gemini(messages: list, tools: list | None = None):
+def call_gemini(messages: list, tools=None):
     cooldowns = _load_cooldowns()
     last_error = None
     start = next(_key_cycle)
@@ -79,7 +80,7 @@ def call_gemini(messages: list, tools: list | None = None):
             config = types.GenerateContentConfig(
                 temperature=MODEL_CONFIG.get("temperature"),
                 max_output_tokens=MODEL_CONFIG.get("max_tokens"),
-                tools=tools or [],
+                tools=[tools] if tools else [],
             )
 
             response = client.models.generate_content(
@@ -102,7 +103,6 @@ def call_gemini(messages: list, tools: list | None = None):
                 logging.warning(f"[APIPool] {key_label} rate limited; cooldown {COOLDOWN_SECS}s")
                 continue
 
-            # Non-rate-limit error — raise immediately, don't try other keys
             raise
 
     min_wait = min(
