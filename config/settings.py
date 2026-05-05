@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.getenv("BASE_DIR") 
 
 MODEL_CONFIG = {
     'name': 'gemini-3.1-flash-lite-preview',
