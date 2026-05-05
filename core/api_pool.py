@@ -54,7 +54,7 @@ def _is_available(key: str, cooldowns: dict) -> bool:
 
 
 def _is_rate_limit_error(err: str) -> bool:
-    rate_limit_keywords = ["quota", "resource_exhausted", "429"]
+    rate_limit_keywords = ["quota", "resource_exhausted", "429", "503", "unavailable"]
     return any(kw in err for kw in rate_limit_keywords) and "validation" not in err
 
 
