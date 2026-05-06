@@ -1,7 +1,7 @@
 import json
 import logging
 from core.api_pool import call_llm
-from tools.registry import TOOL_REGISTRY, OPENAI_TOOL_SCHEMAS
+from tools.registry import TOOL_REGISTRY, TOOL_SCHEMAS
 from core.memory import load_history, save_history
 
 MAX_TOOL_ITERATIONS = 15
@@ -21,7 +21,7 @@ def run_agent(user_message: str) -> dict:
     for iteration in range(MAX_TOOL_ITERATIONS):
         try:
             messages_with_system = [{"role": "system", "content": SYSTEM_PROMPT}] + history
-            response = call_llm(messages_with_system, tools=OPENAI_TOOL_SCHEMAS)
+            response = call_llm(messages_with_system, tools=TOOL_SCHEMAS)
         except Exception as e:
             logging.error(f"[Agent][Iter {iteration}] LLM call failed: {e}")
             return {

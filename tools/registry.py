@@ -1,4 +1,14 @@
-OPENAI_TOOL_SCHEMAS = [
+from tools.cmd_tools import make_folder, find_file, read_file, list_directory, open_folder
+
+TOOL_REGISTRY = {
+    "make_folder":    make_folder,
+    "find_file":      find_file,
+    "read_file":      read_file,
+    "list_directory": list_directory,
+    "open_folder":    open_folder,
+}
+
+TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
