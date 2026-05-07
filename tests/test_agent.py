@@ -1,5 +1,12 @@
 # test_agent.py
+import sys
 import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from core.agent_loop import run_agent
 from core.memory import clear_history
 
@@ -7,10 +14,10 @@ clear_history()
 
 tests = [
     "what is 2 + 2",
-    "make a folder called agent_test inside C:\\Users\\r4849\\Desktop\\ctrl-agent",
-    "list the contents of C:\\Users\\r4849\\Desktop\\ctrl-agent",
-    "find a file named settings.py in C:\\Users\\r4849\\Desktop\\ctrl-agent",
-    "read the file C:\\Users\\r4849\\Desktop\\ctrl-agent\\config\\settings.py",
+    f"make a folder called agent_test inside {ROOT}",
+    f"list the contents of {ROOT}",
+    f"find a file named settings.py in {ROOT}",
+    f"read the file {ROOT / 'config' / 'settings.py'}",
 ]
 
 for i, prompt in enumerate(tests):
