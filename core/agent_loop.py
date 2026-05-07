@@ -1,5 +1,6 @@
 import json
 import logging
+from config.settings import BASE_DIR
 from core.api_pool import call_llm
 from tools.registry import TOOL_REGISTRY, TOOL_SCHEMAS
 from core.memory import load_history, save_history
@@ -9,8 +10,12 @@ MAX_TOOL_ITERATIONS = 15
 SYSTEM_PROMPT = (
     "You are a helpful personal assistant and local file system agent running on Windows. "
     "You can answer general questions and also use tools to manage files and folders. "
+    f"The user's base directory is: {BASE_DIR}"
+    "When calling find_file or list_directory, always pass search_root explicitly based on "
+    "what the user says. Examples: "
+    "'find X on desktop' -> search_root = 'C:\\\\Users\\\\r4849\\\\Desktop'. "
+    "If the user gives no location, use BASE_DIR as search_root. "
     "When a tool returns file content, always display the full content verbatim. "
-    "Never summarize or truncate file contents unless the user explicitly asks."
 )
 
 def run_agent(user_message: str) -> dict:
