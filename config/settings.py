@@ -7,7 +7,7 @@ BASE_DIR = os.getenv("BASE_DIR") or os.path.expanduser("~")
 
 MODEL_FALLBACKS = [
     'llama-3.3-70b-versatile',
-    'llama-4-scout-17b-16e-instruct',
+    'llama-3.1-8b-instant',
 ]
 
 MODEL_CONFIG = {

@@ -110,7 +110,10 @@ def open_folder(path: str) -> dict:
     if sys.platform != "win32":
         return {"success": False, "error": "open_folder is only supported on Windows"}
     try:
-        subprocess.run(["explorer", str(Path(path).resolve())], shell=False)
-        return {"success": True, "opened": path}
+        resolved = str(Path(path).resolve())
+        if not Path(resolved).exists():
+            return {"success": False, "error": f"Folder does not exist: {resolved}"}
+        subprocess.Popen(["explorer", resolved], shell=False)
+        return {"success": True, "opened": resolved}
     except Exception as e:
         return {"success": False, "error": str(e)}
