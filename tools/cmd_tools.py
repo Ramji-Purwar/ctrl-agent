@@ -6,7 +6,7 @@ from pathlib import Path
 from difflib import SequenceMatcher
 from config.settings import BASE_DIR
 
-EXCLUDE_DIRS = {"AppData", "venv", ".venv", "__pycache__", "node_modules", ".git", "site-packages"}
+EXCLUDE_DIRS = {"AppData", "venv", ".venv", "__pycache__", "node_modules", ".git", "site-packages", ".antigravity", ".cache", ".codex", ".copilot", ".cursor", ".gemini", ".ipython", ".matplotlib", ".ms-ad", ".sbx-denybin", ".ssh", ".vscode", ".vscode-shared", ".gitconfig", ".lesshst"}
 
 FUZZY_THRESHOLD = 0.6
 
