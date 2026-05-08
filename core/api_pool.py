@@ -1,33 +1,32 @@
-import logging
 import time
+import logging
 from openai import OpenAI
 from config.settings import GROQ_KEYS, MODEL_CONFIG, MODEL_FALLBACKS
 
-logging.getLogger("httpcore").setLevel(logging.WARNING)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-
 _clients = {}
-_key_index = 0
-
+_cooldowns = {}
+COOLDOWN_SECS = 60
 RETRY_DELAY = 10
 RETRIES_PER_MODEL = 3
 
-def _get_next_key() -> str:
-    global _key_index
-    key = GROQ_KEYS[_key_index % len(GROQ_KEYS)]
-    _key_index += 1
-    return key
-
 
 def _get_client(api_key: str) -> OpenAI:
-    client = _clients.get(api_key)
-    if client is None:
-        client = OpenAI(
+    if api_key not in _clients:
+        _clients[api_key] = OpenAI(
             base_url="https://api.groq.com/openai/v1",
             api_key=api_key,
         )
-        _clients[api_key] = client
-    return client
+    return _clients[api_key]
+
+
+def _available_keys() -> list:
+    now = time.time()
+    return [k for k in GROQ_KEYS if _cooldowns.get(k, 0) < now]
+
+
+def _cooldown_key(key: str):
+    _cooldowns[key] = time.time() + COOLDOWN_SECS
+    logging.warning(f"[APIPool] Key ...{key[-4:]} put on cooldown for {COOLDOWN_SECS}s")
 
 
 def call_llm(messages: list, tools=None) -> object:
@@ -43,24 +42,35 @@ def call_llm(messages: list, tools=None) -> object:
             kwargs["tool_choice"] = "auto"
 
         for attempt in range(1, RETRIES_PER_MODEL + 1):
+            keys = _available_keys()
+            if not keys:
+                logging.warning(f"[APIPool] All keys on cooldown — waiting {RETRY_DELAY}s...")
+                time.sleep(RETRY_DELAY)
+                keys = _available_keys()
+                if not keys:
+                    break  # try next model
+
+            key = keys[0]  # always use first available key
             try:
-                logging.debug(f"[APIPool] [{model}] Attempt {attempt}/{RETRIES_PER_MODEL}...")
-                api_key = _get_next_key()
-                client = _get_client(api_key)
-                response = client.chat.completions.create(**kwargs)
+                logging.debug(f"[APIPool] [{model}] Attempt {attempt} with key ...{key[-4:]}")
+                response = _get_client(key).chat.completions.create(**kwargs)
                 logging.debug(f"[APIPool] [{model}] Success.")
                 return response
+
             except Exception as exc:
                 err = str(exc)
-                if "429" in err:
-                    if attempt < RETRIES_PER_MODEL:
-                        logging.warning(f"[APIPool] [{model}] Rate limited. Waiting {RETRY_DELAY}s...")
-                        time.sleep(RETRY_DELAY)
-                        continue
-                    else:
-                        logging.warning(f"[APIPool] [{model}] All retries exhausted, trying next model...")
-                        break
-                logging.error(f"[APIPool] [{model}] Error: {exc}")
-                raise
+                if "429" in err or "rate_limit" in err.lower():
+                    _cooldown_key(key)          # ban this key for 60s
+                    logging.warning(f"[APIPool] [{model}] Rate limited on key ...{key[-4:]}, trying next available key...")
+                    continue                     # retry with next available key
+                elif "413" in err or "too large" in err.lower():
+                    # token overflow — no point retrying with other keys
+                    logging.error(f"[APIPool] [{model}] Request too large: {exc}")
+                    raise
+                else:
+                    logging.error(f"[APIPool] [{model}] Error: {exc}")
+                    raise
 
-    raise Exception("All models rate limited. Try again later.")
+        logging.warning(f"[APIPool] [{model}] All attempts failed, trying next model...")
+
+    raise Exception("All models and keys exhausted. Try again later.")
