@@ -16,9 +16,19 @@ MODEL_CONFIG = {
     'max_tokens': 2048,
 }
 
-GROQ_KEY = os.getenv("GROQ_API_KEY", "").strip()
+GROQ_KEYS = [
+    os.getenv("GROQ_API_KEY_1", "").strip(),
+    os.getenv("GROQ_API_KEY_2", "").strip(),
+    os.getenv("GROQ_API_KEY_3", "").strip(),
+    os.getenv("GROQ_API_KEY_4", "").strip(),
+]
+GROQ_KEYS = [key for key in GROQ_KEYS if key]
 
-if not GROQ_KEY:
-    raise ValueError("No GROQ API key found. Set GROQ_API_KEY in .env")
-if len(GROQ_KEY) < 20:
-    raise ValueError("GROQ API key looks invalid (too short).")
+if not GROQ_KEYS:
+    raise ValueError(
+        "No GROQ API key found. Set GROQ_API_KEY_1..GROQ_API_KEY_4 in .env"
+    )
+
+for key in GROQ_KEYS:
+    if len(key) < 20:
+        raise ValueError("One or more GROQ API keys look invalid (too short).")

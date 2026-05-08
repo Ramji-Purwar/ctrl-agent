@@ -22,7 +22,7 @@ DELAY_SUCCESS = 15
 DELAY_FAILURE = 25
 
 # clear chat memory every N tests
-MEMORY_RESET_INTERVAL = 15
+MEMORY_RESET_INTERVAL = 5
 
 
 # ── Setup ─────────────────────────────────────────────────────────────────────

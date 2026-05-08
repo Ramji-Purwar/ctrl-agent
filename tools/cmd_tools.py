@@ -25,9 +25,8 @@ def _safe_check(path: str, operation: str) -> dict | None:
     return None
 
 def _fuzzy_match(query: str, filename: str) -> bool:
-    # Strip extension for comparison
     query_clean    = query.lower().replace(".", "")
-    filename_clean = Path(filename).stem.lower()  # stem = name without extension
+    filename_clean = Path(filename).stem.lower()
 
     if query_clean in filename_clean:
         return True
@@ -35,20 +34,28 @@ def _fuzzy_match(query: str, filename: str) -> bool:
     ratio = SequenceMatcher(None, query_clean, filename_clean).ratio()
     return ratio >= FUZZY_THRESHOLD
 
-def find_file(filename: str, search_root: str = BASE_DIR) -> dict:
+def find_file(filename: str, search_root: str = BASE_DIR, max_results: int = 15) -> dict:
     if err := _safe_check(search_root, "find_file"): return err
     try:
         matches = []
         for root, dirs, files in os.walk(search_root):
-            
+
             dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
 
             for f in files:
                 full_path = os.path.join(root, f)
                 if _fuzzy_match(filename, f) and is_safe_path(full_path):
                     matches.append(full_path)
+                    if len(matches) >= max_results:
+                        return {
+                            "success": True,
+                            "matches": matches,
+                            "count": len(matches),
+                            "truncated": True,
+                            "note": f"Showing first {max_results} results. Narrow your search_root for more specific results."
+                        }
 
-        return {"success": True, "matches": matches, "count": len(matches)}
+        return {"success": True, "matches": matches, "count": len(matches), "truncated": False}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

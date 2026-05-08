@@ -1,29 +1,36 @@
 import logging
 import time
 from openai import OpenAI
-from config.settings import GROQ_KEY, MODEL_CONFIG, MODEL_FALLBACKS
+from config.settings import GROQ_KEYS, MODEL_CONFIG, MODEL_FALLBACKS
 
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
-_client = None
+_clients = {}
+_key_index = 0
 
 RETRY_DELAY = 10
 RETRIES_PER_MODEL = 3
 
-def _get_client() -> OpenAI:
-    global _client
-    if _client is None:
-        _client = OpenAI(
+def _get_next_key() -> str:
+    global _key_index
+    key = GROQ_KEYS[_key_index % len(GROQ_KEYS)]
+    _key_index += 1
+    return key
+
+
+def _get_client(api_key: str) -> OpenAI:
+    client = _clients.get(api_key)
+    if client is None:
+        client = OpenAI(
             base_url="https://api.groq.com/openai/v1",
-            api_key=GROQ_KEY,
+            api_key=api_key,
         )
-    return _client
+        _clients[api_key] = client
+    return client
 
 
 def call_llm(messages: list, tools=None) -> object:
-    client = _get_client()
-
     for model in MODEL_FALLBACKS:
         kwargs = {
             "model": model,
@@ -38,6 +45,8 @@ def call_llm(messages: list, tools=None) -> object:
         for attempt in range(1, RETRIES_PER_MODEL + 1):
             try:
                 logging.debug(f"[APIPool] [{model}] Attempt {attempt}/{RETRIES_PER_MODEL}...")
+                api_key = _get_next_key()
+                client = _get_client(api_key)
                 response = client.chat.completions.create(**kwargs)
                 logging.debug(f"[APIPool] [{model}] Success.")
                 return response

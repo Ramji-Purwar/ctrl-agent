@@ -41,6 +41,10 @@ TOOL_SCHEMAS = [
                     "search_root": {
                         "type": "string",
                         "description": "Folder to search inside. Defaults to BASE_DIR if not provided."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return. Default is 15. Use a lower value like 5 if the search_root is large or results may be numerous."
                     }
                 },
                 "required": ["filename"]
