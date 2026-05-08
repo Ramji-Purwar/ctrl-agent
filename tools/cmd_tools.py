@@ -83,6 +83,27 @@ def list_directory(path: str = BASE_DIR) -> dict:
         return {"success": True, "items": items, "count": len(items)}
     except Exception as e:
         return {"success": False, "error": str(e)}
+    
+def find_folder(foldername: str, search_root: str = BASE_DIR, max_results: int = 10) -> dict:
+    if err := _safe_check(search_root, "find_folder"): return err
+    try:
+        matches = []
+        for root, dirs, _ in os.walk(search_root):
+            dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
+            for d in dirs:
+                full_path = os.path.join(root, d)
+                if _fuzzy_match(foldername, d) and is_safe_path(full_path):
+                    matches.append(full_path)
+                    if len(matches) >= max_results:
+                        return {
+                            "success": True,
+                            "matches": matches,
+                            "count": len(matches),
+                            "truncated": True
+                        }
+        return {"success": True, "matches": matches, "count": len(matches), "truncated": False}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 def open_folder(path: str) -> dict:
     if err := _safe_check(path, "open_folder"): return err

@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 
 HISTORY_FILE = Path("data/conversation.json")
-MAX_TURNS = 20
+MAX_TURNS = 10
 
 def load_history() -> list:
     try:
