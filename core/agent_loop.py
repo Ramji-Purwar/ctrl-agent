@@ -6,6 +6,7 @@ from tools.registry import TOOL_REGISTRY, TOOL_SCHEMAS
 from core.memory import load_history, save_history
 
 MAX_TOOL_ITERATIONS = 15
+MAX_FORMAT_RETRIES  = 3
 
 SYSTEM_PROMPT = (
     "You are a helpful personal assistant and local file system agent running on Windows. "
@@ -17,107 +18,93 @@ SYSTEM_PROMPT = (
     "3. For make_folder inside X: always call find_folder to locate X, then make the folder inside the result. "
     "4. For find_file: return the location only. Do NOT call read_file unless the user asked to read the file. "
     "5. To call a tool, use the native tool_calls mechanism only — never write <function=...> in text. "
+    "6. Call one tool at a time. Wait for its result before calling the next tool. Never nest tool calls. "
 )
 
-# Patterns that indicate the model tried to call a tool as plain text
-_MALFORMED_TOOL_PATTERNS = [
-    "<function=",
-    "<function ",
-    "</function>",
-]
+_MALFORMED_PATTERNS = ["<function=", "<function ", "</function>"]
 
+def _is_malformed(text: str) -> bool:
+    return any(p in text for p in _MALFORMED_PATTERNS)
 
-def _is_malformed_tool_call(text: str) -> bool:
-    return any(pattern in text for pattern in _MALFORMED_TOOL_PATTERNS)
-
+_FORMAT_REMINDER = (
+    "Your last tool call was malformed or rejected by the API. "
+    "Rules: (1) Use ONLY the native tool_calls mechanism. "
+    "(2) Never write <function=...> syntax in text. "
+    "(3) Call one tool at a time — never nest calls. "
+    "Try the same task again using proper tool_calls."
+)
 
 def run_agent(user_message: str) -> dict:
-    history = load_history()
+    history    = load_history()
     history.append({"role": "user", "content": user_message})
-    tools_used = []
-    malformed_retries = 0
-    MAX_MALFORMED_RETRIES = 2
+    tools_used     = []
+    format_retries = 0  # single shared counter for all format/rejection errors
 
     for iteration in range(MAX_TOOL_ITERATIONS):
-        try:
-            messages_with_system = [{"role": "system", "content": SYSTEM_PROMPT}] + history
-            response = call_llm(messages_with_system, tools=TOOL_SCHEMAS)
-        except Exception as e:
-            logging.error(f"[Agent][Iter {iteration}] LLM call failed: {e}")
-            return {
-                "response": f"API error: {e}. Try again in a moment.",
-                "tools_used": tools_used,
-                "success": False
-            }
 
-        message = response.choices[0].message
+        # LLM call
+        try:
+            response = call_llm(
+                [{"role": "system", "content": SYSTEM_PROMPT}] + history,
+                tools=TOOL_SCHEMAS
+            )
+        except Exception as e:
+            err = str(e)
+            is_format_error = (
+                "tool_use_failed"          in err or
+                "Failed to call a function" in err or
+                "tool call validation failed" in err
+            )
+            if is_format_error and format_retries < MAX_FORMAT_RETRIES:
+                format_retries += 1
+                logging.warning(
+                    f"[Agent][Iter {iteration}] API-level tool format error "
+                    f"(retry {format_retries}/{MAX_FORMAT_RETRIES})"
+                )
+                history.append({"role": "user", "content": _FORMAT_REMINDER})
+                continue
+
+            logging.error(f"[Agent][Iter {iteration}] LLM call failed: {e}")
+            return {"response": f"API error: {e}. Try again in a moment.",
+                    "tools_used": tools_used, "success": False}
+
+        # Parse response
+        message       = response.choices[0].message
         finish_reason = response.choices[0].finish_reason
 
-        # Guard against empty response
         if not message:
             logging.warning(f"[Agent][Iter {iteration}] Empty message returned.")
-            return {
-                "response": "The model returned an empty response. Try rephrasing.",
-                "tools_used": tools_used,
-                "success": False
-            }
+            return {"response": "The model returned an empty response. Try rephrasing.",
+                    "tools_used": tools_used, "success": False}
 
-        # Final answer — no tool calls
         if finish_reason == "stop" or not message.tool_calls:
             final_text = message.content or ""
 
-            # Detect if the model tried to call a tool as plain text (malformed)
-            if _is_malformed_tool_call(final_text):
-                if malformed_retries < MAX_MALFORMED_RETRIES:
-                    malformed_retries += 1
+            if _is_malformed(final_text):
+                if format_retries < MAX_FORMAT_RETRIES:
+                    format_retries += 1
                     logging.warning(
-                        f"[Agent][Iter {iteration}] Malformed tool call detected in text "
-                        f"(retry {malformed_retries}/{MAX_MALFORMED_RETRIES}) — injecting format reminder"
+                        f"[Agent][Iter {iteration}] Malformed tool call in text "
+                        f"(retry {format_retries}/{MAX_FORMAT_RETRIES})"
                     )
-                    history.append({
-                        "role": "user",
-                        "content": (
-                            "You tried to call a tool but used the wrong format. "
-                            "Do NOT write <function=...> or any tool call syntax in your text. "
-                            "You MUST use the native tool_calls mechanism — it is available to you. "
-                            "Please try again using tool_calls."
-                        )
-                    })
-                    continue  # retry the iteration
+                    history.append({"role": "user", "content": _FORMAT_REMINDER})
+                    continue
                 else:
-                    # Retries exhausted — strip the broken text and return a clean error
-                    logging.error(
-                        f"[Agent][Iter {iteration}] Malformed tool call persists after "
-                        f"{MAX_MALFORMED_RETRIES} retries — giving up."
-                    )
-                    return {
-                        "response": "Sorry, I had trouble calling the right tool for this. Try rephrasing your request.",
-                        "tools_used": tools_used,
-                        "success": False
-                    }
+                    logging.error(f"[Agent][Iter {iteration}] Malformed tool call persists — giving up.")
+                    return {"response": "I had trouble calling the right tool. Try rephrasing.",
+                            "tools_used": tools_used, "success": False}
 
             history.append({"role": "assistant", "content": final_text})
             save_history(history)
-            return {
-                "response": final_text,
-                "tools_used": tools_used,
-                "success": True
-            }
+            return {"response": final_text, "tools_used": tools_used, "success": True}
 
-        # Has tool calls — process all of them
-        # Append assistant message with tool_calls
+        # Tool calls
         history.append({
             "role": "assistant",
             "content": message.content or "",
             "tool_calls": [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
-                    }
-                }
+                {"id": tc.id, "type": "function",
+                 "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
                 for tc in message.tool_calls
             ]
         })
@@ -127,22 +114,18 @@ def run_agent(user_message: str) -> dict:
             try:
                 tool_args = json.loads(tc.function.arguments)
             except json.JSONDecodeError:
-                logging.warning(f"[Agent][Iter {iteration}][Tool: {tool_name}] Failed to parse args: {tc.function.arguments}")
+                logging.warning(f"[Agent][Iter {iteration}][Tool: {tool_name}] Bad args: {tc.function.arguments}")
                 tool_args = {}
 
             logging.info(f"[Agent][Iter {iteration}][Tool: {tool_name}] Args: {tool_args}")
             tools_used.append(tool_name)
 
             tool_fn = TOOL_REGISTRY.get(tool_name)
-            if tool_fn:
-                result = tool_fn(**tool_args)
-            else:
-                result = {"success": False, "error": f"Tool not found: {tool_name}"}
+            result  = tool_fn(**tool_args) if tool_fn else {"success": False, "error": f"Tool not found: {tool_name}"}
 
             if not result.get("success", False):
-                error_msg = result.get("error", "Unknown error")
-                logging.warning(f"[Agent][Iter {iteration}][Tool: {tool_name}] Failed: {error_msg}")
-                tool_result_content = f"Tool failed with error: {error_msg}"
+                logging.warning(f"[Agent][Iter {iteration}][Tool: {tool_name}] Failed: {result.get('error')}")
+                tool_result_content = f"Tool failed with error: {result.get('error', 'Unknown error')}"
             else:
                 logging.info(f"[Agent][Iter {iteration}][Tool: {tool_name}] Success")
                 tool_result_content = json.dumps(result)
@@ -153,12 +136,8 @@ def run_agent(user_message: str) -> dict:
                 "content": tool_result_content,
             })
 
-        # Reset malformed retry counter after a successful real tool call cycle
-        malformed_retries = 0
+        format_retries = 0 
 
     save_history(history)
-    return {
-        "response": "Reached max iterations. Try breaking your request into smaller steps.",
-        "tools_used": tools_used,
-        "success": False
-    }
+    return {"response": "Reached max iterations. Try breaking your request into smaller steps.",
+            "tools_used": tools_used, "success": False}

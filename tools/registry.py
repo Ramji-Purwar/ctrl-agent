@@ -18,7 +18,8 @@ TOOL_SCHEMAS = [
                 "Create a new folder inside an existing parent folder. "
                 "IMPORTANT: If the user says 'make folder X inside Y', you MUST first call "
                 "find_folder to locate Y and get its full path. Never guess a parent path. "
-                "Only call make_folder once you have the verified full path of the parent."
+                "Only call make_folder once you have the verified full path of the parent. "
+                "Never place another tool call inside this tool's arguments."
             ),
             "parameters": {
                 "type": "object",
@@ -142,7 +143,8 @@ TOOL_SCHEMAS = [
                 "Open a folder in Windows Explorer. "
                 "IMPORTANT: You must have a verified full path before calling this. "
                 "If the user gives only a folder name (not a full path), call find_folder first "
-                "to get the real path, then call open_folder with that path."
+                "to get the real path, then call open_folder with that path. "
+                "Never place another tool call inside this tool's arguments."
             ),
             "parameters": {
                 "type": "object",

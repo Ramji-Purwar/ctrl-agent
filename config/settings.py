@@ -6,6 +6,7 @@ load_dotenv()
 BASE_DIR = os.getenv("BASE_DIR") or os.path.expanduser("~")
 
 MODEL_FALLBACKS = [
+    'llama3-groq-70b-8192-tool-use-preview'
     'llama-3.3-70b-versatile',
     'llama-3.1-8b-instant',
 ]
