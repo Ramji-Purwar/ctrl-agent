@@ -75,10 +75,6 @@ tools/
     registry.py
 ```
 
-## Model
-
-Uses `llama3-groq-70b-8192-tool-use-preview` via Groq — a tool-use fine-tune of Llama 3 70b. Configured in `core/api_pool.py`.
-
 ## Troubleshooting
 
 **"No GROQ API key found"** — check your `.env` file exists in the project root and the variable names match exactly.
