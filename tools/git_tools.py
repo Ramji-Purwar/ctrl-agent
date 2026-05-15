@@ -4,17 +4,7 @@ import logging
 import tempfile
 from pathlib import Path
 from config.settings import BASE_DIR, GIT_USERNAME, GIT_TOKEN
-
-def _is_safe_repo(repo_path: str) -> bool:
-    try:
-        resolved = Path(repo_path).resolve()
-        base     = Path(BASE_DIR).resolve()
-        resolved.relative_to(base)
-        return True
-    except ValueError:
-        return False
-    except Exception:
-        return False
+from tools.cmd_tools import find_folder, is_safe_path, _safe_check
 
 
 def _run_git(args: list, cwd: str) -> tuple:
@@ -99,48 +89,29 @@ def _run_git_with_auth(args: list, cwd: str) -> tuple:
 
 
 def _find_repo(repo_name: str) -> str | None:
-    base = Path(BASE_DIR).resolve()
-    name = repo_name.lower()
-
-    EXCLUDE = {
-        "AppData", "venv", ".venv", "__pycache__", "node_modules",
-        ".git", "site-packages", ".cache",
-    }
-
-    def _walk(root: Path, depth: int):
-        if depth > 4:
-            return
-        try:
-            for child in root.iterdir():
-                if not child.is_dir() or child.name in EXCLUDE:
-                    continue
-                if child.name.lower() == name and (child / ".git").exists():
-                    yield child
-                else:
-                    yield from _walk(child, depth + 1)
-        except PermissionError:
-            pass
-
-    for match in _walk(base, 0):
-        return str(match)
+    result = find_folder(repo_name, search_root=BASE_DIR, max_results=10)
+    if not result["success"]:
+        return None
+    for path in result["matches"]:
+        if (Path(path) / ".git").exists():
+            return path
     return None
 
 
 def _resolve_repo(repo_path: str) -> tuple:
     p = Path(repo_path).resolve()
     if p.exists() and (p / ".git").exists():
-        if _is_safe_repo(str(p)):
+        if is_safe_path(str(p)):
             return str(p), None
         return None, "Repo is outside the allowed directory."
 
     found = _find_repo(repo_path)
     if found:
-        if _is_safe_repo(found):
+        if is_safe_path(found):
             return found, None
         return None, "Repo is outside the allowed directory."
 
     return None, f"No git repository found for '{repo_path}' inside BASE_DIR."
-
 
 
 def git_status(repo_path: str) -> dict:
@@ -181,7 +152,6 @@ def git_status(repo_path: str) -> dict:
 
 
 def git_log(repo_path: str, limit: int = 10) -> dict:
-
     resolved, err = _resolve_repo(repo_path)
     if err:
         return {"success": False, "error": err}
@@ -211,7 +181,6 @@ def git_log(repo_path: str, limit: int = 10) -> dict:
 
 
 def git_diff(repo_path: str, staged: bool = False) -> dict:
-
     resolved, err = _resolve_repo(repo_path)
     if err:
         return {"success": False, "error": err}
@@ -236,7 +205,6 @@ def git_diff(repo_path: str, staged: bool = False) -> dict:
 
 
 def git_add(repo_path: str, files: list = None) -> dict:
-
     resolved, err = _resolve_repo(repo_path)
     if err:
         return {"success": False, "error": err}
@@ -251,7 +219,6 @@ def git_add(repo_path: str, files: list = None) -> dict:
 
 
 def git_commit(repo_path: str, message: str) -> dict:
-
     resolved, err = _resolve_repo(repo_path)
     if err:
         return {"success": False, "error": err}
@@ -292,7 +259,6 @@ def git_push_dry_run(repo_path: str, remote: str = "origin", branch: str = "") -
 
 def git_push(repo_path: str, remote: str = "origin", branch: str = "",
              confirmed: bool = False) -> dict:
-    
     resolved, err = _resolve_repo(repo_path)
     if err:
         return {"success": False, "error": err}
@@ -322,7 +288,6 @@ def git_push(repo_path: str, remote: str = "origin", branch: str = "",
 
 
 def git_pull(repo_path: str, remote: str = "origin", branch: str = "") -> dict:
-    
     resolved, err = _resolve_repo(repo_path)
     if err:
         return {"success": False, "error": err}
@@ -341,7 +306,6 @@ def git_pull(repo_path: str, remote: str = "origin", branch: str = "") -> dict:
 
 
 def git_branches(repo_path: str) -> dict:
-    
     resolved, err = _resolve_repo(repo_path)
     if err:
         return {"success": False, "error": err}
@@ -359,3 +323,46 @@ def git_branches(repo_path: str) -> dict:
 
     logging.info(f"[Git][branches] Count: {len(branches)} | Repo: {resolved}")
     return {"success": True, "repo": resolved, "branches": branches, "current": current}
+
+
+def git_clone(url: str, dest_path: str) -> dict:
+    if not url or not url.strip():
+        return {"success": False, "error": "URL cannot be empty."}
+
+    if not dest_path or not dest_path.strip():
+        return {"success": False, "error": "Destination path cannot be empty."}
+
+    dest_path = str(Path(dest_path).resolve())
+
+    if err := _safe_check(dest_path, "git_clone"):
+        return err
+
+    if Path(dest_path).exists():
+        return {"success": False, "error": f"Destination already exists: {dest_path}"}
+
+    ok, output = _run_git_with_auth(["clone", url, dest_path], cwd=BASE_DIR)
+    if not ok:
+        return {"success": False, "error": output}
+
+    logging.info(f"[Git][clone] URL: {url} | Dest: {dest_path}")
+    return {"success": True, "url": url, "dest": dest_path, "output": output}
+
+
+def git_init(repo_path: str) -> dict:
+    if not repo_path or not repo_path.strip():
+        return {"success": False, "error": "Repo path cannot be empty."}
+
+    repo_path = str(Path(repo_path).resolve())
+
+    if err := _safe_check(repo_path, "git_init"):
+        return err
+
+    Path(repo_path).mkdir(parents=True, exist_ok=True)
+
+    ok, output = _run_git(["init"], repo_path)
+    if not ok:
+        return {"success": False, "error": output}
+
+    logging.info(f"[Git][init] Repo: {repo_path}")
+    return {"success": True, "repo": repo_path, "output": output}
+

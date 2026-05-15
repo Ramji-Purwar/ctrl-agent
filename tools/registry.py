@@ -2,7 +2,7 @@ from tools.cmd_tools import make_folder, find_file, find_folder, read_file, list
 from tools.git_tools import (
     git_status, git_log, git_diff, git_add,
     git_commit, git_push_dry_run, git_push,
-    git_pull, git_branches,
+    git_pull, git_branches, git_clone, git_init,
 )
 
 TOOL_REGISTRY = {
@@ -23,6 +23,8 @@ TOOL_REGISTRY = {
     "git_push":         git_push,
     "git_pull":         git_pull,
     "git_branches":     git_branches,
+    "git_clone":        git_clone,
+    "git_init":         git_init,
 }
 
 TOOL_SCHEMAS = [
@@ -410,4 +412,42 @@ TOOL_SCHEMAS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_clone",
+            "description": "Clone a remote git repository to a specified local path.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the remote git repository to clone."
+                    },
+                    "dest_path": {
+                        "type": "string",
+                        "description": "Local path where the repository should be cloned."
+                    }
+                },
+                "required": ["url", "dest_path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_init",
+            "description": "Initialize a new git repository in the specified local path.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Local path where the new git repository should be initialized."
+                    }
+                },
+                "required": ["repo_path"]
+            }
+        }
+    }
 ]
