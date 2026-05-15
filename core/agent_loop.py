@@ -19,6 +19,10 @@ SYSTEM_PROMPT = (
     "4. For find_file: return the location only. Do NOT call read_file unless the user asked to read the file. "
     "5. To call a tool, use the native tool_calls mechanism only — never write <function=...> in text. "
     "6. Call one tool at a time. Wait for its result before calling the next tool. Never nest tool calls. "
+    "7. For git_push: always call git_push_dry_run first, show the user the preview, and wait for their "
+    "   explicit confirmation before calling git_push with confirmed=true. "
+    "8. When a tool returns requires_confirmation=true, relay the confirmation message to the user and wait. "
+    "   Do NOT call the tool again until the user explicitly says to proceed."
 )
 
 _MALFORMED_PATTERNS = ["<function=", "<function ", "</function>"]
@@ -38,7 +42,7 @@ def run_agent(user_message: str) -> dict:
     history    = load_history()
     history.append({"role": "user", "content": user_message})
     tools_used     = []
-    format_retries = 0  # single shared counter for all format/rejection errors
+    format_retries = 0
 
     for iteration in range(MAX_TOOL_ITERATIONS):
 
@@ -51,8 +55,8 @@ def run_agent(user_message: str) -> dict:
         except Exception as e:
             err = str(e)
             is_format_error = (
-                "tool_use_failed"          in err or
-                "Failed to call a function" in err or
+                "tool_use_failed"             in err or
+                "Failed to call a function"   in err or
                 "tool call validation failed" in err
             )
             if is_format_error and format_retries < MAX_FORMAT_RETRIES:
@@ -123,6 +127,18 @@ def run_agent(user_message: str) -> dict:
             tool_fn = TOOL_REGISTRY.get(tool_name)
             result  = tool_fn(**tool_args) if tool_fn else {"success": False, "error": f"Tool not found: {tool_name}"}
 
+            # Confirmation required — not a failure, relay the message and stop
+            if result.get("requires_confirmation"):
+                logging.info(f"[Agent][Iter {iteration}][Tool: {tool_name}] Awaiting user confirmation.")
+                confirmation_msg = result.get("message", "This action requires your confirmation to proceed.")
+                history.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": confirmation_msg,
+                })
+                # Let llm relay the confirmation request to the user, then stop
+                continue
+
             if not result.get("success", False):
                 logging.warning(f"[Agent][Iter {iteration}][Tool: {tool_name}] Failed: {result.get('error')}")
                 tool_result_content = f"Tool failed with error: {result.get('error', 'Unknown error')}"
@@ -136,7 +152,7 @@ def run_agent(user_message: str) -> dict:
                 "content": tool_result_content,
             })
 
-        format_retries = 0 
+        format_retries = 0
 
     save_history(history)
     return {"response": "Reached max iterations. Try breaking your request into smaller steps.",
