@@ -3,10 +3,12 @@ import logging
 from openai import OpenAI
 from config.settings import GROQ_KEYS, MODEL_CONFIG, MODEL_FALLBACKS
 
-_clients = {}
-_cooldowns = {}
-COOLDOWN_SECS = 60
-RETRY_DELAY = 10
+_clients    = {}
+_cooldowns  = {}
+_key_index  = 0
+
+COOLDOWN_SECS     = 60
+RETRY_DELAY       = 10
 RETRIES_PER_MODEL = 3
 
 
@@ -30,15 +32,17 @@ def _cooldown_key(key: str):
 
 
 def call_llm(messages: list, tools=None) -> object:
+    global _key_index
+
     for model in MODEL_FALLBACKS:
         kwargs = {
-            "model": model,
-            "messages": messages,
+            "model":       model,
+            "messages":    messages,
             "temperature": MODEL_CONFIG["temperature"],
-            "max_tokens": MODEL_CONFIG["max_tokens"],
+            "max_tokens":  MODEL_CONFIG["max_tokens"],
         }
         if tools:
-            kwargs["tools"] = tools
+            kwargs["tools"]       = tools
             kwargs["tool_choice"] = "auto"
 
         for attempt in range(1, RETRIES_PER_MODEL + 1):
@@ -50,7 +54,9 @@ def call_llm(messages: list, tools=None) -> object:
                 if not keys:
                     break  # try next model
 
-            key = keys[0]  # always use first available key
+            key = keys[_key_index % len(keys)]   # round-robin pick
+            _key_index += 1                       # advance for next call
+
             try:
                 logging.debug(f"[APIPool] [{model}] Attempt {attempt} with key ...{key[-4:]}")
                 response = _get_client(key).chat.completions.create(**kwargs)
@@ -60,11 +66,13 @@ def call_llm(messages: list, tools=None) -> object:
             except Exception as exc:
                 err = str(exc)
                 if "429" in err or "rate_limit" in err.lower():
-                    _cooldown_key(key)          # ban this key for 60s
-                    logging.warning(f"[APIPool] [{model}] Rate limited on key ...{key[-4:]}, trying next available key...")
-                    continue                     # retry with next available key
+                    _cooldown_key(key)
+                    logging.warning(
+                        f"[APIPool] [{model}] Rate limited on key ...{key[-4:]}, "
+                        f"trying next available key..."
+                    )
+                    continue
                 elif "413" in err or "too large" in err.lower():
-                    # token overflow — no point retrying with other keys
                     logging.error(f"[APIPool] [{model}] Request too large: {exc}")
                     raise
                 else:

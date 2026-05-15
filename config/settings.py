@@ -32,3 +32,6 @@ if not GROQ_KEYS:
 for key in GROQ_KEYS:
     if len(key) < 20:
         raise ValueError("One or more GROQ API keys look invalid (too short).")
+    
+GIT_USERNAME = os.getenv("GIT_USERNAME", "").strip()
+GIT_TOKEN    = os.getenv("GIT_TOKEN", "").strip()
