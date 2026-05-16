@@ -1,3 +1,5 @@
 python-dotenv
 openai
 groq
+pywebview
+flask
