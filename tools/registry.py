@@ -3,6 +3,8 @@ from tools.git_tools import (
     git_status, git_log, git_diff, git_add,
     git_commit, git_push_dry_run, git_push,
     git_pull, git_branches, git_clone, git_init,
+    git_checkout, git_merge, git_reset, git_restore, 
+    git_stash, git_commit_amend,
 )
 
 TOOL_REGISTRY = {
@@ -25,6 +27,12 @@ TOOL_REGISTRY = {
     "git_branches":     git_branches,
     "git_clone":        git_clone,
     "git_init":         git_init,
+    "git_checkout":     git_checkout,
+    "git_merge":        git_merge,
+    "git_reset":        git_reset,
+    "git_restore":      git_restore,
+    "git_stash":        git_stash,
+    "git_commit_amend": git_commit_amend,
 }
 
 TOOL_SCHEMAS = [
@@ -449,5 +457,146 @@ TOOL_SCHEMAS = [
                 "required": ["repo_path"]
             }
         }
-    }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_checkout",
+            "description": "Switch to a branch, or create and switch if create=True",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Local path where the new git repository should be initialized."
+                    },
+                    "branch": {
+                        "type": "string",
+                        "description": "Branch name to switch to or create."
+                    },
+                    "create": {
+                        "type": "boolean",
+                        "description": "If true, create the branch first. Default to false."
+                    }
+                },
+                "required": ["repo_path", "branch"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_merge",
+            "description": "Merge a branch into the current branch.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Local path of the git repository."
+                    },
+                    "branch": {
+                        "type": "string",
+                        "description": "Branch name to merge from."
+                    }
+                },
+                "required": ["repo_path", "source_branch"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_reset",
+            "description": "Undo the last N commits. soft keeps changes staged; hard discards them.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Path or name of the repository."
+                    },
+                    "mode":      {
+                        "type": "string",
+                        "enum": ["soft", "hard"],
+                        "description": "Reset mode. Defaults to 'soft'."
+                    },
+                    "steps":     {
+                        "type": "integer",
+                        "description": "Number of commits to undo. Defaults to 1.",
+                        "minimum": 1
+                    }
+                },
+                "required": ["repo_path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_restore",
+            "description": "Discard working-directory changes for files, or unstage them with staged=True.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Path or name of the repository."
+                    },
+                    "files": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Files to restore or unstage."
+                    },
+                    "staged": {
+                        "type": "boolean",
+                        "description": "If True, unstage instead of discard. Default to False."
+                    }
+                },
+                "required": ["repo_path", "files"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_stash",
+            "description": "Stash current changes, or restore the latest stash with pop=True.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Path or name of the repository."
+                    },
+                    "pop": {
+                        "type": "boolean",
+                        "description": "If true, run stash pop. Defaults to false."
+                    }
+                },
+                "required": ["repo_path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_commit_amend",
+            "description": "Replace the last commit message without changing its content.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Path or name of the repository."
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "New commit message."
+                    }
+                },
+                "required": ["repo_path", "message"]
+            }
+        }
+    },
 ]

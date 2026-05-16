@@ -366,3 +366,106 @@ def git_init(repo_path: str) -> dict:
     logging.info(f"[Git][init] Repo: {repo_path}")
     return {"success": True, "repo": repo_path, "output": output}
 
+
+def git_checkout(repo_path: str, branch: str, create: bool = False) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+    
+    if not branch or not branch.strip():
+        return {"success": False, "error": "Branch name cannot be empty."}
+    
+    args = ["checkout"] + (["-b"] if create else []) + [branch.strip()]
+    ok, output = _run_git(args, resolved)
+    
+    if not ok:
+        return {"success": False, "error": output}
+    
+    action = "created and switched to" if create else "switched to"
+    logging.info(f"[Git][checkout] {action} branch '{branch}' | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "branch": branch, "action": action, "output": output}
+
+
+def git_merge(repo_path: str, branch: str) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+    
+    if not branch or not branch.strip():
+        return {"success": False, "error": "Branch name cannot be empty."}
+    
+    ok, output = _run_git(["merge", branch.strip()], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    logging.info(f"[Git][merge] Merged branch '{branch}' into current branch | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "merged_branch": branch, "output": output}
+
+
+def git_reset(repo_path: str, mode: str = "soft", steps: int = 1) -> dict:
+    """Undo the last N commits. mode='soft' keeps changes staged, 'hard' discards them."""
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+    
+    if mode not in {'soft', 'hard'}:
+        return {"success": False, "error": "Invalid reset mode. Use 'soft' or 'hard'."}
+    
+    steps = max(1, steps)
+    ref = f"HEAD~{steps}"
+
+    ok, output = _run_git(["reset", ref, f"--{mode}"], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    logging.info(f"[Git][reset] Mode: {mode} | Steps: {steps} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "mode": mode, "ref": ref, "steps": steps, "output": output}
+
+
+def git_restore(repo_path: str, files: list, staged: bool = False) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err: 
+        return {"success": False, "error": err}
+    
+    if not files:
+        return {"success": False, "error": "No files specified for restore."}
+    
+    args = ["restore"] + (["--staged"] if staged else []) + files
+    ok, output = _run_git(args, resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    action = "Unstaged" if staged else "Restored"
+    logging.info(f"[Git][restore] Files : {files} | Staged : {staged} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "files": files, "action": action, "output": output}
+
+
+def git_stash(repo_path: str, pop: bool = False) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+    
+    args = ["stash"] + (["pop"] if pop else [])
+    ok, output = _run_git(args, resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    action = "Popped" if pop else "Stashed"
+    logging.info(f"[Git][stash] Action: {action} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "action": action, "output": output}
+
+
+def git_commit_amend(repo_path: str, message: str) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+    
+    if not message or not message.strip():
+        return {"success": False, "error": "Commit message cannot be empty."}
+    
+    ok, output = _run_git(["commit", "--amend", "-m", message.strip()], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    logging.info(f"[Git][commit_amend] Repo: {resolved}")
+    return {"success": True, "repo": resolved, "output": output}
