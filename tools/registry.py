@@ -3,8 +3,10 @@ from tools.git_tools import (
     git_status, git_log, git_diff, git_add,
     git_commit, git_push_dry_run, git_push,
     git_pull, git_branches, git_clone, git_init,
-    git_checkout, git_merge, git_reset, git_restore, 
-    git_stash, git_commit_amend,
+    git_checkout, git_merge, git_reset, git_restore,
+    git_stash, git_commit_amend, git_fetch,
+    git_remote_list, git_remote_add, git_cherry_pick,
+    git_show, git_stash_list, git_stash_drop,
 )
 
 TOOL_REGISTRY = {
@@ -33,6 +35,13 @@ TOOL_REGISTRY = {
     "git_restore":      git_restore,
     "git_stash":        git_stash,
     "git_commit_amend": git_commit_amend,
+    "git_fetch":        git_fetch,
+    "git_remote_list":  git_remote_list,
+    "git_remote_add":   git_remote_add,
+    "git_cherry_pick":  git_cherry_pick,
+    "git_show":         git_show,
+    "git_stash_list":   git_stash_list,
+    "git_stash_drop":   git_stash_drop,
 }
 
 TOOL_SCHEMAS = [
@@ -596,6 +605,149 @@ TOOL_SCHEMAS = [
                     }
                 },
                 "required": ["repo_path", "message"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_fetch",
+            "description": "Fetch changes from a remote without merging them into the current branch.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Path or name of the repository."
+                    },
+                    "remote": {
+                        "type": "string",
+                        "description": "Remote name. Defaults to 'origin'."
+                    }
+                },
+                "required": ["repo_path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_remote_list",
+            "description": "List all remotes configured for a repository (equivalent to git remote -v).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Path or name of the repository."
+                    }
+                },
+                "required": ["repo_path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_remote_add",
+            "description": "Add a new remote to the repository.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Path or name of the repository."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name for the remote (e.g. 'origin', 'upstream')."
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "URL of the remote repository."
+                    }
+                },
+                "required": ["repo_path", "name", "url"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_cherry_pick",
+            "description": "Apply a specific commit from any branch onto the current branch.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Path or name of the repository."
+                    },
+                    "commit_hash": {
+                        "type": "string",
+                        "description": "Hash of the commit to apply."
+                    }
+                },
+                "required": ["repo_path", "commit_hash"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_show",
+            "description": "Show the diff and metadata (author, date, message) for a specific commit.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Path or name of the repository."
+                    },
+                    "commit_hash": {
+                        "type": "string",
+                        "description": "Hash of the commit to inspect."
+                    }
+                },
+                "required": ["repo_path", "commit_hash"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_stash_list",
+            "description": "List all stash entries in the repository.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Path or name of the repository."
+                    }
+                },
+                "required": ["repo_path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_stash_drop",
+            "description": "Delete a specific stash entry. Defaults to the most recent stash.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "repo_path": {
+                        "type": "string",
+                        "description": "Path or name of the repository."
+                    },
+                    "ref": {
+                        "type": "string",
+                        "description": "Stash ref to drop, e.g. 'stash@{2}'. Defaults to 'stash@{0}'."
+                    }
+                },
+                "required": ["repo_path"]
             }
         }
     },

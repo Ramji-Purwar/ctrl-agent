@@ -469,3 +469,128 @@ def git_commit_amend(repo_path: str, message: str) -> dict:
     
     logging.info(f"[Git][commit_amend] Repo: {resolved}")
     return {"success": True, "repo": resolved, "output": output}
+
+
+def git_fetch(repo_path: str, remote: str = "origin") -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+    
+    ok, output = _run_git_with_auth(["fetch", remote], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    logging.info(f"[Git][fetch] Remote: {remote} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "remote": remote, "output": output or "(already up to date)"}
+
+
+def git_remote_list(repo_path: str) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+    
+    ok, output = _run_git(["remote", "-v"], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    remotes = {}
+    for line in output.splitlines():
+        parts = line.split()
+        if len(parts) >= 2:
+            name, url = parts[0], parts[1]
+            remotes[name] = url
+
+    logging.info(f"[Git][remote_list] Count: {len(remotes)} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "remotes": remotes}
+
+
+def git_remote_add(repo_path: str, name: str, url: str) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+    
+    if not name or not name.strip():
+        return {"success": False, "error": "Remote name cannot be empty."}
+    if not url or not url.strip():
+        return {"success": False, "error": "Remote URL cannot be empty."}
+    
+    ok, output = _run_git(["remote", "add", name.strip(), url.strip()], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    logging.info(f"[Git][remote_add] Name: {name} | URL: {url} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "name": name.strip(), "url": url.strip(), "output": output}
+
+
+def git_cherry_pick(repo_path: str, commit_hash: str) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+    
+    if not commit_hash or not commit_hash.strip():
+        return {"success": False, "error": "Commit hash cannot be empty."}
+    
+    ok, output = _run_git(["cherry-pick", commit_hash.strip()], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    logging.info(f"[Git][cherry_pick] Hash: {commit_hash} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "commit_hash": commit_hash.strip(), "output": output}
+
+
+def git_show(repo_path: str, commit_hash: str) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+    
+    if not commit_hash or not commit_hash.strip():
+        return {"success": False, "error": "Commit hash cannot be empty."}
+    
+    ok, output = _run_git(["show", commit_hash.strip()], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    truncated = False
+    if len(output) > 8000:
+        output, truncated = output[:8000], True
+
+    logging.info(f"[Git][show] Hash: {commit_hash} | Truncated: {truncated} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "commit_hash": commit_hash.strip(), "output": output, "truncated": truncated}
+
+
+def git_stash_list(repo_path: str) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+        
+    ok, output = _run_git(["stash", "list"], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    stashes = []
+    for line in output.splitlines():
+        parts = line.split(":", 2)
+        if len(parts) >= 3:
+            stashes.append({
+                "id": parts[0].strip(),
+                "branch": parts[1].strip(),
+                "message": parts[2].strip(),
+            })
+        elif line.strip():
+            stashes.append({"id": line.strip(), "branch": "", "message": ""})
+
+    logging.info(f"[Git][stash_list] Count: {len(stashes)} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "stashes": stashes}
+
+
+def git_stash_drop(repo_path: str, ref: str = "stash@{0}") -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+    
+    ok, output = _run_git(["stash", "drop", ref.strip()], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    logging.info(f"[Git][stash_drop] Ref: {ref} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "dropped": ref.strip(), "output": output}
