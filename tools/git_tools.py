@@ -594,3 +594,87 @@ def git_stash_drop(repo_path: str, ref: str = "stash@{0}") -> dict:
     
     logging.info(f"[Git][stash_drop] Ref: {ref} | Repo: {resolved}")
     return {"success": True, "repo": resolved, "dropped": ref.strip(), "output": output}
+
+
+def git_tag(repo_path: str, name: str, commit_hash: str) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"sucess": False, "error": err}
+    
+    if not name or not name.strip():
+        return {"success": False, "error": "Tag name cannot be empty."}
+    
+    if not commit_hash or not commit_hash.strip():
+        return {"success": False, "error": "Commit hash cannot be empty."}
+    
+    ok, output = _run_git(["tag", name.strip(), commit_hash.strip()], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    logging.info(f"[Git][tag] Name: {name} | Hash: {commit_hash} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "tag": name.strip(), "commit_hash": commit_hash.strip(), "output": output}
+
+
+def git_push_tags(repo_path: str, remote: str = "origin", branch: str = "", confirmed: bool = False) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+
+    if not branch:
+        ok, branch = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], resolved)
+        if not ok:
+            branch = "current branch"
+
+    if not confirmed:
+        return {
+            "success":               False,
+            "error":                 "Push requires explicit confirmation.",
+            "requires_confirmation": True,
+            "message": (
+                f"About to push tags along with '{branch}' to '{remote}'. "
+                f"Reply with confirmed=True to proceed."
+            ),
+        }
+
+    ok, output = _run_git_with_auth(["push", remote, branch, "--tags"], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+
+    logging.info(f"[Git][push_tags] Remote: {remote} | Branch: {branch} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "remote": remote, "branch": branch, "output": output}
+
+
+def git_blame(repo_path: str, file: str, line_range: str) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+    
+    if not file or not file.strip():
+        return {"success": False, "error": "File path cannot be empty."}
+    
+    if not line_range or not line_range.strip():
+        return {"success": False, "error": "Line range cannot be empty."}
+    
+    ok, output = _run_git(["blame", "-L", line_range.strip(), "--", file.strip()], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+    
+    truncated = False
+    if len(output) > 8000:
+        output, truncated = output[:8000], True
+
+    logging.info(f"[Git][blame] File: {file} | Line Range: {line_range} | Truncated: {truncated} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "file": file.strip(), "line_range": line_range.strip(), "output": output, "truncated": truncated}
+
+
+def git_rebase(repo_path: str, branch: str) -> dict:
+    resolved, err = _resolve_repo(repo_path)
+    if err:
+        return {"success": False, "error": err}
+
+    ok, output = _run_git(["rebase", branch], resolved)
+    if not ok:
+        return {"success": False, "error": output}
+
+    logging.info(f"[Git][rebase] Branch: {branch} | Repo: {resolved}")
+    return {"success": True, "repo": resolved, "branch": branch, "output": output}
