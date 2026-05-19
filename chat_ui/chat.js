@@ -1,39 +1,38 @@
-const outputEl = document.getElementById("output");
-const thinkingEl = document.getElementById("thinking");
-const inputEl = document.getElementById("input");
-const clearBtn = document.getElementById("clear-btn");
+const messagesEl = document.getElementById("messages");
+const inputEl    = document.getElementById("input");
+const sendBtn    = document.getElementById("send-btn");
+const clearBtn   = document.getElementById("clear-btn");
+const statusPill = document.getElementById("status-pill");
+const statusText = document.getElementById("status-text");
 
 let busy = false;
 
-// Command history — like a real shell
+// ── Command history ─────────────────────────────────────────────
 const history = [];
-let historyIdx = -1;      // -1 = not browsing history
-let pendingInput = "";    // saves what the user was typing before navigating history
+let historyIdx  = -1;
+let pendingInput = "";
 
-// Auto-resize textarea as user types
+// ── Auto-resize textarea ────────────────────────────────────────
 inputEl.addEventListener("input", () => {
   inputEl.style.height = "auto";
   inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + "px";
 });
 
-// Enter sends, Up/Down navigates history, Shift+Enter is newline
+// ── Keyboard handling ───────────────────────────────────────────
 inputEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
     handleInput();
     return;
   }
-
   if (e.key === "ArrowUp") {
     e.preventDefault();
-    if (history.length === 0) return;
-    // Save current input before we start browsing
+    if (!history.length) return;
     if (historyIdx === -1) pendingInput = inputEl.value;
     historyIdx = Math.min(historyIdx + 1, history.length - 1);
     setInput(history[historyIdx]);
     return;
   }
-
   if (e.key === "ArrowDown") {
     e.preventDefault();
     if (historyIdx === -1) return;
@@ -41,62 +40,60 @@ inputEl.addEventListener("keydown", (e) => {
     setInput(historyIdx === -1 ? pendingInput : history[historyIdx]);
     return;
   }
+  if (e.key === "l" && e.ctrlKey) {
+    e.preventDefault();
+    clearTerminal();
+  }
 });
+
+sendBtn.addEventListener("click", handleInput);
+clearBtn.addEventListener("click", clearTerminal);
 
 function setInput(val) {
   inputEl.value = val;
   inputEl.style.height = "auto";
   inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + "px";
-  // Move cursor to end
   requestAnimationFrame(() => {
     inputEl.selectionStart = inputEl.selectionEnd = inputEl.value.length;
   });
 }
 
-clearBtn.addEventListener("click", clearTerminal);
-
-// ── Main input handler ──────────────────────────────────────────
+// ── Main handler ────────────────────────────────────────────────
 async function handleInput() {
   if (busy) return;
-
   const text = inputEl.value.trim();
   if (!text) return;
 
-  // Push to history (skip duplicates at the top)
+  // History
   if (history[0] !== text) history.unshift(text);
-  historyIdx = -1;
+  historyIdx  = -1;
   pendingInput = "";
 
   inputEl.value = "";
   inputEl.style.height = "auto";
 
-  // Intercept local commands — never hit the LLM
+  // Local commands — never touch the LLM
   if (text.toLowerCase() === "clear") {
     clearTerminal();
     return;
   }
 
   if (text.toLowerCase() === "help") {
-    printUser(text);
-    printAgent("commands:\n  clear       clear the terminal\n  help        show this message\n  <anything>  sent to the agent");
-    printSpacer();
+    appendGroup(text, "commands:\n  clear       clear the terminal\n  help        show this message\n  <anything>  sent to the agent", [], false);
     return;
   }
 
-  printUser(text);
+  // Show prompt line + thinking spinner
+  const group = appendGroupShell(text);
   setBusy(true);
 
   try {
     const result = await callChat(text);
-    printAgent(result.response || "(no response)");
-    if ((result.tools_used || []).length > 0) {
-      printToolTrace(result.tools_used);
-    }
+    finalizeGroup(group, result.response || "(no response)", result.tools_used || [], result.success !== false);
   } catch (err) {
-    printError(err.message);
+    finalizeGroup(group, err.message, [], false);
   } finally {
     setBusy(false);
-    printSpacer();
   }
 }
 
@@ -114,68 +111,113 @@ async function callChat(message) {
   return res.json();
 }
 
-// ── Print helpers ───────────────────────────────────────────────
-function printUser(text) {
-  const el = document.createElement("div");
-  el.className = "line user";
-  el.textContent = text;
-  outputEl.insertBefore(el, thinkingEl);
+// ── Render helpers ───────────────────────────────────────────────
+
+// Creates a group with prompt + thinking indicator; returns the group el
+function appendGroupShell(cmd) {
+  const group = document.createElement("div");
+  group.className = "msg-group";
+
+  const promptLine = document.createElement("div");
+  promptLine.className = "prompt-line";
+  promptLine.innerHTML = `<span class="prompt-sym">›</span><span class="prompt-cmd">${escHtml(cmd)}</span>`;
+
+  const thinking = document.createElement("div");
+  thinking.className = "thinking";
+  thinking.innerHTML = `
+    <div class="thinking-dots"><span></span><span></span><span></span></div>
+    <span class="thinking-label">agent is thinking…</span>
+  `;
+
+  group.appendChild(promptLine);
+  group.appendChild(thinking);
+  messagesEl.appendChild(group);
+  scrollToBottom();
+  return group;
+}
+
+// Replaces thinking with final response + tool pills
+function finalizeGroup(group, responseText, tools, success) {
+  // Remove thinking
+  const thinking = group.querySelector(".thinking");
+  if (thinking) thinking.remove();
+
+  const block = document.createElement("div");
+  block.className = "response-block";
+
+  const textEl = document.createElement("div");
+  textEl.className = success ? "response-text" : "response-text error-text";
+  textEl.textContent = responseText;
+  block.appendChild(textEl);
+
+  if (tools.length > 0) {
+    const row = document.createElement("div");
+    row.className = "tool-row";
+
+    const label = document.createElement("span");
+    label.className = "tool-label";
+    label.textContent = "tools";
+    row.appendChild(label);
+
+    tools.forEach((t) => {
+      const pill = document.createElement("span");
+      pill.className = `tool-pill ${toolClass(t)}`;
+      pill.innerHTML = `<i class="ti ${toolIcon(t)}" aria-hidden="true"></i> ${escHtml(t)}`;
+      row.appendChild(pill);
+    });
+
+    block.appendChild(row);
+  } else if (success) {
+    // "none" pill for responses that used no tools
+    const row = document.createElement("div");
+    row.className = "tool-row";
+    const label = document.createElement("span");
+    label.className = "tool-label";
+    label.textContent = "tools";
+    row.appendChild(label);
+    const pill = document.createElement("span");
+    pill.className = "tool-pill none";
+    pill.innerHTML = `<i class="ti ti-brain" aria-hidden="true"></i> none`;
+    row.appendChild(pill);
+    block.appendChild(row);
+  }
+
+  group.appendChild(block);
   scrollToBottom();
 }
 
-function printAgent(text) {
-  // Split on newlines and print each as its own line
-  const lines = text.split("\n");
-  lines.forEach((line) => {
-    const el = document.createElement("div");
-    el.className = "line agent";
-    el.textContent = line;
-    outputEl.insertBefore(el, thinkingEl);
-  });
-  scrollToBottom();
+// Simple version for local commands (help etc.)
+function appendGroup(cmd, responseText, tools, success) {
+  const group = appendGroupShell(cmd);
+  finalizeGroup(group, responseText, tools, success);
 }
 
-function printError(text) {
-  const el = document.createElement("div");
-  el.className = "line error";
-  el.textContent = text;
-  outputEl.insertBefore(el, thinkingEl);
-  scrollToBottom();
+// ── Tool pill styling ────────────────────────────────────────────
+function toolClass(name) {
+  const n = name.toLowerCase();
+  if (n.includes("read") || n.includes("find") || n.includes("search") || n.includes("list")) return "info";
+  return "success";
 }
 
-function printSpacer() {
-  const el = document.createElement("div");
-  el.className = "line spacer";
-  outputEl.insertBefore(el, thinkingEl);
+function toolIcon(name) {
+  const n = name.toLowerCase();
+  if (n.includes("git"))    return "ti-brand-git";
+  if (n.includes("file") || n.includes("read")) return "ti-file";
+  if (n.includes("find") || n.includes("search")) return "ti-search";
+  if (n.includes("run") || n.includes("exec") || n.includes("bash") || n.includes("shell")) return "ti-terminal";
+  if (n.includes("write") || n.includes("create")) return "ti-file-plus";
+  if (n.includes("folder") || n.includes("dir")) return "ti-folder";
+  if (n.includes("open")) return "ti-external-link";
+  return "ti-tool";
 }
 
-function printToolTrace(tools) {
-  const details = document.createElement("details");
-  details.className = "tool-trace";
-
-  const summary = document.createElement("summary");
-  summary.textContent = `tools: ${tools.join(", ")}`;
-
-  const list = document.createElement("div");
-  list.className = "tools-list";
-  tools.forEach((t) => {
-    const item = document.createElement("div");
-    item.className = "tool-item";
-    item.textContent = t;
-    list.appendChild(item);
-  });
-
-  details.appendChild(summary);
-  details.appendChild(list);
-  outputEl.insertBefore(details, thinkingEl);
-  scrollToBottom();
-}
-
-// ── UI state ────────────────────────────────────────────────────
+// ── UI state ─────────────────────────────────────────────────────
 function setBusy(state) {
   busy = state;
   inputEl.disabled = state;
-  thinkingEl.classList.toggle("visible", state);
+  sendBtn.disabled = state;
+  if (statusPill) statusPill.classList.toggle("busy", state);
+  if (statusText) statusText.textContent = state ? "thinking…" : "ready";
   if (!state) {
     inputEl.focus();
     scrollToBottom();
@@ -183,25 +225,31 @@ function setBusy(state) {
 }
 
 function scrollToBottom() {
-  outputEl.scrollTop = outputEl.scrollHeight;
+  messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-// ── Clear — local only, also calls backend to wipe conversation ──
-async function clearTerminal() {
-  // Remove all output lines except #boot and #thinking
-  const lines = outputEl.querySelectorAll(".line, .tool-trace");
-  lines.forEach((el) => el.remove());
+// ── Clear ─────────────────────────────────────────────────────────
+function clearTerminal() {
+  // Remove all message groups
+  messagesEl.querySelectorAll(".msg-group").forEach(el => el.remove());
 
-  // Wipe history — up arrow only sees commands since last clear
+  // Reset history
   history.length = 0;
-  historyIdx = -1;
+  historyIdx  = -1;
   pendingInput = "";
 
-  scrollToBottom();
-  inputEl.focus();
-
-  // Tell backend to reset conversation history (fire and forget)
+  // Tell backend (fire and forget)
   fetch("/clear", { method: "POST" }).catch(() => {});
+
+  inputEl.focus();
+}
+
+// ── Util ──────────────────────────────────────────────────────────
+function escHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 // Focus on load
