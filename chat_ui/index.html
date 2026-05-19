@@ -3,41 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ctrl Agent</title>
+  <title>ctrl-agent</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="app">
 
-    <div id="header">
-      <div class="dot"></div>
-      <h1>Ctrl Agent</h1>
-      <span class="status" id="status-text">ready</span>
+    <div id="output">
+      <div id="boot">ctrl-agent — type 'help' for commands, 'clear' to reset</div>
+      <div id="thinking">...</div>
     </div>
 
-    <div id="messages">
-      <div id="typing">
-        <span></span><span></span><span></span>
-      </div>
-    </div>
-
-    <div id="input-bar">
+    <div id="prompt-line">
+      <span id="prompt-prefix">$ </span>
       <textarea
         id="input"
         rows="1"
-        placeholder="Type a message…"
         autocomplete="off"
         spellcheck="false"
       ></textarea>
-      <button id="send-btn" class="action-btn" title="Send (Enter)">
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-          <path d="M2 8L14 8M14 8L9 3M14 8L9 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
-      <button id="clear-btn" class="action-btn" title="Clear chat history">✕</button>
     </div>
 
   </div>
+
   <script src="chat.js"></script>
 </body>
 </html>

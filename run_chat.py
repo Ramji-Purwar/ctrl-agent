@@ -4,14 +4,12 @@ import sys
 import time
 import webview
 from flask_app.app import create_app
+from config.settings import FLASK_HOST, FLASK_PORT
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
-
-FLASK_PORT = 5000
-FLASK_HOST = "127.0.0.1"
 
 
 def start_flask(app):
@@ -54,8 +52,8 @@ if __name__ == "__main__":
     window = webview.create_window(
         title="AI Agent",
         url=f"http://{FLASK_HOST}:{FLASK_PORT}",
-        width=820,
-        height=680,
+        width=600,
+        height=480,
         min_size=(600, 480),
         resizable=True,
     )
