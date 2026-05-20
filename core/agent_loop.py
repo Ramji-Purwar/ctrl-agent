@@ -1,6 +1,6 @@
 import json
 import logging
-from config.settings import BASE_DIR
+from config.settings import BASE_DIR, GIT_USERNAME
 from core.api_pool import call_llm
 from tools.registry import TOOL_REGISTRY, TOOL_SCHEMAS
 from core.memory import load_history, save_history
@@ -8,10 +8,17 @@ from core.memory import load_history, save_history
 MAX_TOOL_ITERATIONS = 15
 MAX_FORMAT_RETRIES  = 3
 
+GITHUB_CONTEXT = (
+    f"The user's GitHub username is: {GIT_USERNAME}. "
+    if GIT_USERNAME else
+    "The user's GitHub username is not configured. "
+)
+
 SYSTEM_PROMPT = (
     "You are a helpful personal assistant and local file system agent running on Windows. "
     "You can answer general questions and also use tools to manage files and folders. "
     f"The user's base directory is: {BASE_DIR}. "
+    f"{GITHUB_CONTEXT}"
     "STRICT RULES — follow these every time: "
     "1. Never guess a full path. If you don't know the exact path, call find_folder or find_file first. "
     "2. For open_folder: always call find_folder first unless the user gave a full path explicitly. "
@@ -22,7 +29,11 @@ SYSTEM_PROMPT = (
     "7. For git_push: always call git_push_dry_run first, show the user the preview, and wait for their "
     "   explicit confirmation before calling git_push with confirmed=true. "
     "8. When a tool returns requires_confirmation=true, relay the confirmation message to the user and wait. "
-    "   Do NOT call the tool again until the user explicitly says to proceed."
+    "   Do NOT call the tool again until the user explicitly says to proceed. "
+    "9. Never read or reveal secret files such as .env files, API keys, tokens, or credentials. "
+    "10. If the user asks to clone '<repo-name>' or says the repo is from 'my GitHub', and a GitHub "
+    "    username is configured, use https://github.com/<configured-username>/<repo-name>.git. "
+    "    If no GitHub username is configured, ask for the username instead of guessing."
 )
 
 _MALFORMED_PATTERNS = ["<function=", "<function ", "</function>"]
