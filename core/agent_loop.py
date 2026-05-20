@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from config.settings import GIT_USERNAME, get_base_dir
 from core.api_pool import call_llm
 from tools.registry import TOOL_REGISTRY, TOOL_SCHEMAS
@@ -38,9 +39,67 @@ def _build_system_prompt() -> str:
     )
 
 _MALFORMED_PATTERNS = ["<function=", "<function ", "</function>"]
+_MALFORMED_TOOL_RE = re.compile(
+    r"<function=([A-Za-z_][A-Za-z0-9_]*)\((\{.*?\})\)</function>",
+    re.DOTALL,
+)
 
 def _is_malformed(text: str) -> bool:
     return any(p in text for p in _MALFORMED_PATTERNS)
+
+def _extract_malformed_tool_call(text: str) -> tuple[str, dict] | None:
+    match = _MALFORMED_TOOL_RE.search(text)
+    if not match:
+        return None
+
+    tool_name = match.group(1)
+    args_text = match.group(2)
+    try:
+        tool_args = json.loads(args_text)
+    except json.JSONDecodeError:
+        try:
+            tool_args = json.loads(args_text.encode("utf-8").decode("unicode_escape"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            logging.warning(f"[Agent] Could not parse malformed tool args: {args_text}")
+            return None
+
+    return tool_name, tool_args
+
+def _format_direct_tool_result(tool_name: str, result: dict) -> str:
+    if not result.get("success", False):
+        return f"Tool failed with error: {result.get('error', 'Unknown error')}"
+
+    if tool_name == "find_file":
+        matches = result.get("matches", [])
+        if not matches:
+            return "No matching files found."
+        heading = f"Found {len(matches)} matching file{'s' if len(matches) != 1 else ''}:"
+        return heading + "\n" + "\n".join(matches)
+
+    return json.dumps(result, indent=2)
+
+def _try_run_malformed_tool(text: str) -> dict | None:
+    parsed = _extract_malformed_tool_call(text)
+    if not parsed:
+        return None
+
+    tool_name, tool_args = parsed
+    tool_fn = TOOL_REGISTRY.get(tool_name)
+    if not tool_fn:
+        return None
+
+    logging.warning(f"[Agent] Recovering malformed tool call: {tool_name} args={tool_args}")
+    try:
+        result = tool_fn(**tool_args)
+    except Exception as e:
+        logging.error(f"[Agent][Recovered Tool: {tool_name}] Failed: {e}", exc_info=True)
+        result = {"success": False, "error": str(e)}
+
+    return {
+        "response": _format_direct_tool_result(tool_name, result),
+        "tools_used": [tool_name],
+        "success": bool(result.get("success", False)),
+    }
 
 _FORMAT_REMINDER = (
     "Your last tool call was malformed or rejected by the API. "
@@ -71,6 +130,12 @@ def run_agent(user_message: str) -> dict:
                 "Failed to call a function"   in err or
                 "tool call validation failed" in err
             )
+            recovered = _try_run_malformed_tool(err) if is_format_error else None
+            if recovered:
+                history.append({"role": "assistant", "content": recovered["response"]})
+                save_history(history)
+                return recovered
+
             if is_format_error and format_retries < MAX_FORMAT_RETRIES:
                 format_retries += 1
                 logging.warning(
@@ -97,6 +162,12 @@ def run_agent(user_message: str) -> dict:
             final_text = message.content or ""
 
             if _is_malformed(final_text):
+                recovered = _try_run_malformed_tool(final_text)
+                if recovered:
+                    history.append({"role": "assistant", "content": recovered["response"]})
+                    save_history(history)
+                    return recovered
+
                 if format_retries < MAX_FORMAT_RETRIES:
                     format_retries += 1
                     logging.warning(
