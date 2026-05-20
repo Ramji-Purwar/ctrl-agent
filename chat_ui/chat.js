@@ -79,7 +79,22 @@ async function handleInput() {
   }
 
   if (text.toLowerCase() === "help") {
-    appendGroup(text, "commands:\n  clear       clear the terminal\n  help        show this message\n  <anything>  sent to the agent", [], false);
+    appendGroup(text, "commands:\n  clear       clear the terminal\n  help        show this message\n  cd          show current directory\n  cd <path>   change directory inside default base\n  cd ..       go up one directory\n  cd /        return to default base\n  <anything>  sent to the agent", [], false);
+    return;
+  }
+
+  if (isCdCommand(text)) {
+    const group = appendGroupShell(text);
+    setBusy(true);
+    try {
+      const path = parseCdCommand(text);
+      const result = await setBaseDir(path);
+      finalizeGroup(group, result.base_dir, [], true);
+    } catch (err) {
+      finalizeGroup(group, err.message, [], false);
+    } finally {
+      setBusy(false);
+    }
     return;
   }
 
@@ -109,6 +124,19 @@ async function callChat(message) {
     throw new Error(err.error || `HTTP ${res.status}`);
   }
   return res.json();
+}
+
+async function setBaseDir(path) {
+  const res = await fetch("/base-dir", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || `HTTP ${res.status}`);
+  }
+  return data;
 }
 
 // ── Render helpers ───────────────────────────────────────────────
@@ -250,6 +278,14 @@ function escHtml(str) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function isCdCommand(text) {
+  return text.toLowerCase() === "cd" || text.toLowerCase().startsWith("cd ");
+}
+
+function parseCdCommand(text) {
+  return text.slice("cd".length).trim();
 }
 
 // Focus on load

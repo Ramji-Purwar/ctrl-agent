@@ -1,6 +1,7 @@
 import logging
 from flask import Blueprint, request, jsonify, send_from_directory
 from core.agent_loop import run_agent
+from config.settings import get_base_dir, reset_base_dir, set_base_dir
 import os
 import json
 
@@ -74,3 +75,25 @@ def clear_chat():
     except Exception as e:
         logger.error(f"[Chat] Error clearing conversation: {e}", exc_info=True)
         return jsonify({"error": "Failed to clear chat history"}), 500
+
+
+@chat_bp.route("/base-dir", methods=["GET", "POST"])
+def base_dir():
+    """Read or temporarily change the runtime BASE_DIR, like a scoped cd."""
+    if request.method == "GET":
+        return jsonify({"base_dir": get_base_dir()}), 200
+
+    data = request.get_json(silent=True) or {}
+    path = str(data.get("path", "")).strip()
+
+    try:
+        if not path:
+            return jsonify({"base_dir": get_base_dir()}), 200
+        if path.lower() in {"reset", "/"}:
+            return jsonify({"base_dir": reset_base_dir(), "reset": True}), 200
+        return jsonify({"base_dir": set_base_dir(path), "reset": False}), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.error(f"[Chat] Error changing base_dir: {e}", exc_info=True)
+        return jsonify({"error": "Failed to change base_dir"}), 500

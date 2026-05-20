@@ -4,7 +4,7 @@ import subprocess
 import logging
 from pathlib import Path
 from difflib import SequenceMatcher
-from config.settings import BASE_DIR
+from config.settings import get_base_dir
 
 EXCLUDE_DIRS = {"AppData", "venv", ".venv", "__pycache__", "node_modules", ".git", "site-packages", ".antigravity", ".cache", ".codex", ".copilot", ".cursor", ".gemini", ".ipython", ".matplotlib", ".ms-ad", ".sbx-denybin", ".ssh", ".vscode", ".vscode-shared", ".gitconfig", ".lesshst"}
 
@@ -12,7 +12,7 @@ FUZZY_THRESHOLD = 0.6
 def is_safe_path(path: str) -> bool:
     try:
         resolved = Path(path).resolve()
-        base     = Path(BASE_DIR).resolve()
+        base     = Path(get_base_dir()).resolve()
         return resolved.is_relative_to(base)
     except Exception:
         return False
@@ -20,7 +20,7 @@ def is_safe_path(path: str) -> bool:
 def _safe_check(path: str, operation: str) -> dict | None:
     if not is_safe_path(path):
         logging.warning(f"[CMD][{operation}] Blocked unsafe path: {path}")
-        return {"success": False, "error": f"Path '{path}' is outside allowed directory '{BASE_DIR}'"}
+        return {"success": False, "error": f"Path '{path}' is outside allowed directory '{get_base_dir()}'"}
     return None
 
 def _is_sensitive_file(path: str) -> bool:
@@ -36,7 +36,8 @@ def _fuzzy_match(query: str, filename: str) -> bool:
     ratio = SequenceMatcher(None, query_clean, filename_clean).ratio()
     return ratio >= FUZZY_THRESHOLD
 
-def find_file(filename: str, search_root: str = BASE_DIR, max_results: int = 15) -> dict:
+def find_file(filename: str, search_root: str = None, max_results: int = 15) -> dict:
+    search_root = search_root or get_base_dir()
     if err := _safe_check(search_root, "find_file"): return err
     try:
         matches = []
@@ -84,7 +85,8 @@ def read_file(path: str, max_bytes: int = 10_000) -> dict:
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-def list_directory(path: str = BASE_DIR) -> dict:
+def list_directory(path: str = None) -> dict:
+    path = path or get_base_dir()
     if err := _safe_check(path, "list_directory"): return err
     try:
         items = os.listdir(path)
@@ -92,7 +94,8 @@ def list_directory(path: str = BASE_DIR) -> dict:
     except Exception as e:
         return {"success": False, "error": str(e)}
     
-def find_folder(foldername: str, search_root: str = BASE_DIR, max_results: int = 10) -> dict:
+def find_folder(foldername: str, search_root: str = None, max_results: int = 10) -> dict:
+    search_root = search_root or get_base_dir()
     if err := _safe_check(search_root, "find_folder"): return err
     try:
         matches = []

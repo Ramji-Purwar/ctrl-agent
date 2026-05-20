@@ -1,9 +1,47 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
 
-BASE_DIR = os.getenv("BASE_DIR") or os.path.expanduser("~")
+_DEFAULT_BASE_DIR = os.getenv("BASE_DIR") or os.path.expanduser("~")
+_BASE_DIR = str(Path(os.path.expandvars(os.path.expanduser(_DEFAULT_BASE_DIR))).resolve())
+
+
+def get_base_dir() -> str:
+    return _BASE_DIR
+
+
+def get_default_base_dir() -> str:
+    return str(Path(os.path.expandvars(os.path.expanduser(_DEFAULT_BASE_DIR))).resolve())
+
+
+def set_base_dir(path: str) -> str:
+    global _BASE_DIR
+
+    expanded = Path(os.path.expandvars(os.path.expanduser(path)))
+    if not expanded.is_absolute():
+        expanded = Path(_BASE_DIR) / expanded
+
+    resolved = expanded.resolve()
+    default_base = Path(get_default_base_dir()).resolve()
+
+    if not resolved.is_relative_to(default_base):
+        raise ValueError(f"Cannot cd outside default base directory: {default_base}")
+    if not resolved.exists():
+        raise ValueError(f"Directory does not exist: {resolved}")
+    if not resolved.is_dir():
+        raise ValueError(f"Path is not a directory: {resolved}")
+
+    _BASE_DIR = str(resolved)
+    return _BASE_DIR
+
+
+def reset_base_dir() -> str:
+    return set_base_dir(get_default_base_dir())
+
+
+BASE_DIR = get_base_dir()
 
 MODEL_FALLBACKS = [
     'llama-3.3-70b-versatile',

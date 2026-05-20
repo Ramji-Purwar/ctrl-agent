@@ -3,7 +3,7 @@ import subprocess
 import logging
 import tempfile
 from pathlib import Path
-from config.settings import BASE_DIR, GIT_USERNAME, GIT_TOKEN
+from config.settings import GIT_USERNAME, GIT_TOKEN, get_base_dir
 from tools.cmd_tools import find_folder, is_safe_path, _safe_check
 
 
@@ -89,7 +89,7 @@ def _run_git_with_auth(args: list, cwd: str) -> tuple:
 
 
 def _find_repo(repo_name: str) -> str | None:
-    result = find_folder(repo_name, search_root=BASE_DIR, max_results=10)
+    result = find_folder(repo_name, search_root=get_base_dir(), max_results=10)
     if not result["success"]:
         return None
     for path in result["matches"]:
@@ -359,7 +359,7 @@ def git_clone(url: str, dest_path: str) -> dict:
     if Path(dest_path).exists():
         return {"success": False, "error": f"Destination already exists: {dest_path}"}
 
-    ok, output = _run_git_with_auth(["clone", url, dest_path], cwd=BASE_DIR)
+    ok, output = _run_git_with_auth(["clone", url, dest_path], cwd=get_base_dir())
     if not ok:
         return {"success": False, "error": output}
 
