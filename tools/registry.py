@@ -138,7 +138,8 @@ TOOL_SCHEMAS = [
             "description": (
                 "Read and return the text content of a file. "
                 "Only call this when the user explicitly asks to read, view, show, or print a file's contents. "
-                "Do NOT call this automatically after find_file."
+                "Do NOT call this automatically after find_file. "
+                "Never use this for .env files or other files containing secrets, API keys, tokens, or credentials."
             ),
             "parameters": {
                 "type": "object",
@@ -433,13 +434,18 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "git_clone",
-            "description": "Clone a remote git repository to a specified local path.",
+            "description": (
+                "Clone a remote git repository to a specified local path. "
+                "If the user gives only a repo name and says it is from 'my GitHub', build the URL from "
+                "the configured GitHub username in the system prompt: "
+                "https://github.com/<configured-username>/<repo-name>.git."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "url": {
                         "type": "string",
-                        "description": "URL of the remote git repository to clone."
+                        "description": "Remote git URL to clone, or a single repo name from the user's configured GitHub account."
                     },
                     "dest_path": {
                         "type": "string",

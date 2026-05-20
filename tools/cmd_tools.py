@@ -9,7 +9,6 @@ from config.settings import BASE_DIR
 EXCLUDE_DIRS = {"AppData", "venv", ".venv", "__pycache__", "node_modules", ".git", "site-packages", ".antigravity", ".cache", ".codex", ".copilot", ".cursor", ".gemini", ".ipython", ".matplotlib", ".ms-ad", ".sbx-denybin", ".ssh", ".vscode", ".vscode-shared", ".gitconfig", ".lesshst"}
 
 FUZZY_THRESHOLD = 0.6
-
 def is_safe_path(path: str) -> bool:
     try:
         resolved = Path(path).resolve()
@@ -23,6 +22,9 @@ def _safe_check(path: str, operation: str) -> dict | None:
         logging.warning(f"[CMD][{operation}] Blocked unsafe path: {path}")
         return {"success": False, "error": f"Path '{path}' is outside allowed directory '{BASE_DIR}'"}
     return None
+
+def _is_sensitive_file(path: str) -> bool:
+    return Path(path).name.lower().startswith(".env")
 
 def _fuzzy_match(query: str, filename: str) -> bool:
     query_clean    = query.lower().replace(".", "")
@@ -70,6 +72,12 @@ def make_folder(path: str) -> dict:
 
 def read_file(path: str, max_bytes: int = 10_000) -> dict:
     if err := _safe_check(path, "read_file"): return err
+    if _is_sensitive_file(path):
+        logging.warning(f"[CMD][read_file] Blocked sensitive file read: {path}")
+        return {
+            "success": False,
+            "error": "Reading secret/config files such as .env is not allowed.",
+        }
     try:
         content = Path(path).read_text(encoding="utf-8", errors="replace")[:max_bytes]
         return {"success": True, "content": content, "path": path}

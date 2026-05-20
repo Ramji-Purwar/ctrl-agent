@@ -114,6 +114,21 @@ def _resolve_repo(repo_path: str) -> tuple:
     return None, f"No git repository found for '{repo_path}' inside BASE_DIR."
 
 
+def _normalize_clone_url(url: str) -> tuple[str | None, str | None]:
+    url = url.strip()
+    if "://" in url or url.startswith("git@"):
+        return url, None
+
+    repo_name = url.removesuffix(".git").strip().strip("/")
+    if "/" in repo_name or "\\" in repo_name or not repo_name:
+        return None, "Clone URL must be a full URL or a single GitHub repository name."
+
+    if not GIT_USERNAME:
+        return None, "GitHub username is not configured. Set GIT_USERNAME in .env or provide a full clone URL."
+
+    return f"https://github.com/{GIT_USERNAME}/{repo_name}.git", None
+
+
 def git_status(repo_path: str) -> dict:
     resolved, err = _resolve_repo(repo_path)
     if err:
@@ -331,6 +346,10 @@ def git_clone(url: str, dest_path: str) -> dict:
 
     if not dest_path or not dest_path.strip():
         return {"success": False, "error": "Destination path cannot be empty."}
+
+    url, url_err = _normalize_clone_url(url)
+    if url_err:
+        return {"success": False, "error": url_err}
 
     dest_path = str(Path(dest_path).resolve())
 
