@@ -8,6 +8,7 @@ from tools.git_tools import (
     git_remote_list, git_remote_add, git_cherry_pick,
     git_show, git_stash_list, git_stash_drop,
 )
+from tools.gmail_tools import check_emails, search_emails, show_recent_emails, summarize_email, search_emails
 
 TOOL_REGISTRY = {
     # File system
@@ -42,11 +43,16 @@ TOOL_REGISTRY = {
     "git_show":         git_show,
     "git_stash_list":   git_stash_list,
     "git_stash_drop":   git_stash_drop,
+    # Gmail
+    "check_emails":       check_emails,
+    "show_recent_emails": show_recent_emails,
+    "summarize_email":    summarize_email,
+    "search_emails":      search_emails,
 }
 
 TOOL_SCHEMAS = [
     # -----------------------------------------------------------------------
-    # File system tools (unchanged)
+    # File system tools
     # -----------------------------------------------------------------------
     {
         "type": "function",
@@ -757,4 +763,115 @@ TOOL_SCHEMAS = [
             }
         }
     },
+    # -----------------------------------------------------------------------
+    # Gmail tools
+    # -----------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "check_emails",
+            "description": (
+                "Fetch new unread emails from Gmail, categorize them, and return those "
+                "matching the requested category. Use this when the user asks to check, "
+                "fetch, or poll for new emails. "
+                "category options: 'action_required' (default), 'info', 'ignore', 'all'. "
+                "This makes a live API call — don't use it just to browse; use show_recent_emails for that."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "enum": ["action_required", "info", "ignore", "all"],
+                        "description": (
+                            "Which category to return. Default: 'action_required'. "
+                            "Use 'all' only if the user wants everything."
+                        )
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max number of emails to return. Default 10."
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "show_recent_emails",
+            "description": (
+                "Show emails from the local cache without making any API call. "
+                "Use this when the user asks to see recent or previously fetched emails. "
+                "Much faster and cheaper than check_emails. "
+                "Use check_emails if the user specifically wants fresh/new emails."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "How many emails to show. Default 10."
+                    },
+                    "category": {
+                        "type": "string",
+                        "enum": ["action_required", "info", "ignore", "all"],
+                        "description": "Filter by category. Default 'all'."
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "summarize_email",
+            "description": (
+                "Retrieve the full body of a specific email by its ID from the local cache, "
+                "so you can read and summarize it for the user. "
+                "Use this when the user asks to read, open, or summarize a specific email. "
+                "You must have the email ID — get it from check_emails or show_recent_emails first."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "email_id": {
+                        "type": "string",
+                        "description": "The Gmail message ID of the email to retrieve."
+                    }
+                },
+                "required": ["email_id"]
+            }
+        }
+    },
+    {
+    "type": "function",
+    "function": {
+        "name": "search_emails",
+        "description": (
+            "Search Gmail with any query and return matching emails. "
+            "Use this when the user asks for emails from a specific sender, "
+            "with a specific subject, or from a specific date. "
+            "Never uses or updates the unread cache — always hits Gmail directly. "
+            "Examples: query='from:cds@iitgn.ac.in', query='subject:assignment', "
+            "query='from:boss@work.com after:2024/1/1'"
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Gmail search query, e.g. 'from:sender@domain.com' or 'subject:deadline'"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max emails to return. Default 10."
+                }
+            },
+            "required": ["query"]
+        }
+    }
+},
 ]

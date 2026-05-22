@@ -76,3 +76,8 @@ GIT_TOKEN    = os.getenv("GIT_TOKEN", "").strip()
 
 FLASK_PORT = os.getenv("FLASK_PORT")
 FLASK_HOST = os.getenv("FLASK_HOST")
+
+GMAIL_CREDENTIALS_FILE = os.path.join("data", "gmail_credentials.json")
+GMAIL_TOKEN_FILE       = os.path.join("data", "gmail_token.json")
+GMAIL_CACHE_FILE       = os.path.join("data", "email_cache.json")
+GMAIL_RULES_FILE       = os.path.join("data", "rules.json")

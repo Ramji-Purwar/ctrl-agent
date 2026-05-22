@@ -36,6 +36,11 @@ def _build_system_prompt() -> str:
         "10. If the user asks to clone '<repo-name>' or says the repo is from 'my GitHub', and a GitHub "
         "    username is configured, use https://github.com/<configured-username>/<repo-name>.git. "
         "    If no GitHub username is configured, ask for the username instead of guessing."
+        "11. For Gmail: to find emails from a specific sender, call search_emails with "
+        "    query='from:sender@domain.com'. Use search_emails for any sender/subject/date "
+        "    specific lookup — it searches all mail. Use check_emails only for fetching "
+        "    new unread emails for the scheduler. Never say emails are not found without "
+        "    first calling search_emails with the right query. "
     )
 
 _MALFORMED_PATTERNS = ["<function=", "<function ", "</function>"]
