@@ -847,31 +847,31 @@ TOOL_SCHEMAS = [
         }
     },
     {
-    "type": "function",
-    "function": {
-        "name": "search_emails",
-        "description": (
-            "Search Gmail with any query and return matching emails. "
-            "Use this when the user asks for emails from a specific sender, "
-            "with a specific subject, or from a specific date. "
-            "Never uses or updates the unread cache — always hits Gmail directly. "
-            "Examples: query='from:cds@iitgn.ac.in', query='subject:assignment', "
-            "query='from:boss@work.com after:2024/1/1'"
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Gmail search query, e.g. 'from:sender@domain.com' or 'subject:deadline'"
+        "type": "function",
+        "function": {
+            "name": "search_emails",
+            "description": (
+                "Search Gmail with any query and return matching emails. "
+                "Use this when the user asks for emails from a specific sender, "
+                "with a specific subject, or from a specific date. "
+                "Never uses or updates the unread cache — always hits Gmail directly. "
+                "Examples: query='from:cds@iitgn.ac.in', query='subject:assignment', "
+                "query='from:boss@work.com after:2024/1/1'"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Gmail search query, e.g. 'from:sender@domain.com' or 'subject:deadline'"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max emails to return. Default 10."
+                    }
                 },
-                "limit": {
-                    "type": "integer",
-                    "description": "Max emails to return. Default 10."
-                }
-            },
-            "required": ["query"]
+                "required": ["query"]
+            }
         }
-    }
-},
+    },
 ]

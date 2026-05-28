@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ctrl-agent — Widget</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" />
+  <link rel="stylesheet" href="/widget/popup.css" />
+</head>
+<body>
+
+  <div id="widget">
+
+    <!-- ── Header ── -->
+    <div id="header">
+      <div id="header-left">
+        <span id="title">ctrl-agent</span>
+        <span id="subtitle">widget</span>
+      </div>
+      <div id="header-right">
+        <div id="connection-dot"></div>
+        <span id="connection-label">connecting…</span>
+      </div>
+    </div>
+
+    <!-- ── Status bar ── -->
+    <div id="status-bar">
+      <div id="last-check">
+        <i class="ti ti-clock" aria-hidden="true"></i>
+        <span id="last-check-text">No checks yet</span>
+      </div>
+      <div id="email-count">
+        <i class="ti ti-mail" aria-hidden="true"></i>
+        <span id="email-count-text">0 tasks</span>
+      </div>
+    </div>
+
+    <!-- ── Email list ── -->
+    <div id="email-list">
+      <div id="empty-state">
+        <i class="ti ti-inbox-off"></i>
+        <p>No action items yet</p>
+        <span>Emails requiring your attention will appear here</span>
+      </div>
+    </div>
+
+    <!-- ── Summary area ── -->
+    <div id="summary-area" class="hidden">
+      <div id="summary-header">
+        <i class="ti ti-sparkles" aria-hidden="true"></i>
+        <span>Summary</span>
+        <button id="summary-close" title="Close summary">
+          <i class="ti ti-x" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div id="summary-text"></div>
+    </div>
+
+    <!-- ── Action bar ── -->
+    <div id="action-bar">
+      <button class="action-btn primary" data-action="check_now" title="Check Gmail now">
+        <i class="ti ti-refresh" aria-hidden="true"></i>
+        <span>Check Now</span>
+      </button>
+      <button class="action-btn" data-action="summarize_emails" title="AI summary of tasks">
+        <i class="ti ti-sparkles" aria-hidden="true"></i>
+        <span>Summarize</span>
+      </button>
+      <button class="action-btn danger" data-action="clear_notifications" title="Clear all cards">
+        <i class="ti ti-trash" aria-hidden="true"></i>
+        <span>Clear</span>
+      </button>
+    </div>
+
+  </div>
+
+  <script src="/widget/popup.js"></script>
+</body>
+</html>

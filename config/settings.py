@@ -81,3 +81,7 @@ GMAIL_CREDENTIALS_FILE = os.path.join("data", "gmail_credentials.json")
 GMAIL_TOKEN_FILE       = os.path.join("data", "gmail_token.json")
 GMAIL_CACHE_FILE       = os.path.join("data", "email_cache.json")
 GMAIL_RULES_FILE       = os.path.join("data", "rules.json")
+
+# Scheduler
+SCHEDULER_INTERVAL_MINUTES = int(os.getenv("SCHEDULER_INTERVAL", "20"))
+SCHEDULER_ENABLED = os.getenv("SCHEDULER_ENABLED", "true").lower() == "true"
