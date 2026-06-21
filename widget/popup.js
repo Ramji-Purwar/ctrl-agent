@@ -48,6 +48,13 @@ function handleEvent(data) {
       addEmails(data.emails || []);
       break;
 
+    case "remove_email":
+      if (data.email_id) {
+        emails = emails.filter(e => e.id !== data.email_id);
+        renderEmails();
+      }
+      break;
+
     case "check_started":
       setConnection("checking", "checking…");
       break;
@@ -138,6 +145,9 @@ function renderEmails() {
           ${dateStr ? `<span class="task-sep">·</span><span class="task-date">${escHtml(dateStr)}</span>` : ""}
         </span>
       </a>
+      <button class="task-remove-btn" data-id="${email.id}" title="Mark as Done (Remove task)">
+        <i class="ti ti-check"></i>
+      </button>
       <a class="task-open" href="${gmailUrl}" target="_blank" title="Open in Gmail">
         <i class="ti ti-external-link"></i>
       </a>
@@ -147,6 +157,14 @@ function renderEmails() {
   });
 
   emailList.appendChild(ul);
+
+  // Bind individual remove buttons
+  emailList.querySelectorAll(".task-remove-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const emailId = btn.dataset.id;
+      triggerRemove(emailId, btn);
+    });
+  });
 }
 
 // ── Action buttons ──────────────────────────────────────────────
@@ -185,6 +203,35 @@ async function triggerAction(action, btn) {
   } finally {
     btn.classList.remove("loading");
     btn.disabled = false;
+  }
+}
+
+async function triggerRemove(emailId, btn) {
+  btn.disabled = true;
+  btn.style.opacity = 0.5;
+
+  try {
+    const res = await fetch("/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "remove_email", email_id: emailId }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!data.success) {
+      console.error("[Widget] Remove failed:", data.error || "Unknown error");
+      showNotification(data.error || "Failed to remove task");
+      btn.disabled = false;
+      btn.style.opacity = 1.0;
+    } else {
+      emails = emails.filter(e => e.id !== emailId);
+      renderEmails();
+    }
+  } catch (err) {
+    console.error("[Widget] Remove failed:", err);
+    showNotification(`Failed to remove task: ${err.message}`);
+    btn.disabled = false;
+    btn.style.opacity = 1.0;
   }
 }
 

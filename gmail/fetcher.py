@@ -5,8 +5,9 @@ import re
 from pathlib import Path
 
 from gmail.auth import get_gmail_service
+from config.settings import GMAIL_CACHE_FILE
 
-CACHE_FILE     = Path("data/email_cache.json")
+CACHE_FILE     = Path(GMAIL_CACHE_FILE)
 MAX_RESULTS    = 30
 MAX_CACHE_SIZE = 500
 

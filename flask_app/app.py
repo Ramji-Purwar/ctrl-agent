@@ -1,11 +1,12 @@
 import os
 from flask import Flask, send_from_directory
+from config.settings import resource_path
 
 
 def create_app() -> Flask:
     app = Flask(
         __name__,
-        static_folder="../chat_ui",
+        static_folder=resource_path("chat_ui"),
         static_url_path=""
     )
 
@@ -19,7 +20,7 @@ def create_app() -> Flask:
     app.register_blueprint(action_bp)
 
     # Serve widget popup
-    widget_dir = os.path.join(os.path.dirname(__file__), "..", "widget")
+    widget_dir = resource_path("widget")
 
     @app.route("/widget")
     def widget_page():
@@ -29,4 +30,4 @@ def create_app() -> Flask:
     def widget_static(filename):
         return send_from_directory(widget_dir, filename)
 
-    return app
+    return app

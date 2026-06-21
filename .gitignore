@@ -14,9 +14,15 @@ venv/
 
 # __pycache__
 __pycache__/
+*.pyc
 
-# .vccode
+# .vscode
 .vscode/
 
 # issues
 issues.txt
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec

@@ -25,6 +25,25 @@ def handle_action():
         push_event({"type": "clear"})
         return jsonify({"result": "Cleared", "success": True})
 
+    # ── Remove single email ────────────────────────────────────────
+    if action == "remove_email":
+        email_id = data.get("email_id")
+        if not email_id:
+            return jsonify({"error": "Missing 'email_id'"}), 400
+        try:
+            from gmail.fetcher import _load_cache, _save_cache
+            cache = _load_cache()
+            if email_id in cache:
+                cache[email_id]["category"] = "info"  # mark as info so it's no longer action_required
+                _save_cache(cache)
+                push_event({"type": "remove_email", "email_id": email_id})
+                return jsonify({"result": f"Email {email_id} removed", "success": True})
+            else:
+                return jsonify({"error": "Email not found in cache", "success": False}), 404
+        except Exception as e:
+            logger.error(f"[Action] remove_email failed: {e}", exc_info=True)
+            return jsonify({"result": f"Failed: {e}", "success": False}), 500
+
     # ── Check now ──────────────────────────────────────────────────
     if action == "check_now":
         try:

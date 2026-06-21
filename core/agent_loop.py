@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import inspect
 from config.settings import GIT_USERNAME, get_base_dir
 from core.api_pool import call_llm
 from tools.registry import TOOL_REGISTRY, TOOL_SCHEMAS
@@ -8,6 +9,36 @@ from core.memory import load_history, save_history
 
 MAX_TOOL_ITERATIONS = 15
 MAX_FORMAT_RETRIES  = 3
+
+def _coerce_args(func, args: dict) -> dict:
+    try:
+        sig = inspect.signature(func)
+    except Exception:
+        return args
+
+    coerced = {}
+    for name, param in sig.parameters.items():
+        if name in args:
+            val = args[name]
+            is_int = (
+                param.annotation is int or 
+                (param.default is not inspect.Parameter.empty and 
+                 isinstance(param.default, int) and 
+                 not isinstance(param.default, bool))
+            )
+            if is_int and val is not None:
+                try:
+                    coerced[name] = int(val)
+                except (ValueError, TypeError):
+                    coerced[name] = val
+            else:
+                coerced[name] = val
+    
+    for name, val in args.items():
+        if name not in coerced:
+            coerced[name] = val
+            
+    return coerced
 
 def _build_system_prompt() -> str:
     github_context = (
@@ -45,7 +76,7 @@ def _build_system_prompt() -> str:
 
 _MALFORMED_PATTERNS = ["<function=", "<function ", "</function>"]
 _MALFORMED_TOOL_RE = re.compile(
-    r"<function=([A-Za-z_][A-Za-z0-9_]*)\((\{.*?\})\)</function>",
+    r"<function=([A-Za-z_][A-Za-z0-9_]*)[()>\s]*(\{.*?\})[()>\s]*</function>",
     re.DOTALL,
 )
 
@@ -95,6 +126,7 @@ def _try_run_malformed_tool(text: str) -> dict | None:
 
     logging.warning(f"[Agent] Recovering malformed tool call: {tool_name} args={tool_args}")
     try:
+        tool_args = _coerce_args(tool_fn, tool_args)
         result = tool_fn(**tool_args)
     except Exception as e:
         logging.error(f"[Agent][Recovered Tool: {tool_name}] Failed: {e}", exc_info=True)
@@ -213,7 +245,11 @@ def run_agent(user_message: str) -> dict:
             tools_used.append(tool_name)
 
             tool_fn = TOOL_REGISTRY.get(tool_name)
-            result  = tool_fn(**tool_args) if tool_fn else {"success": False, "error": f"Tool not found: {tool_name}"}
+            if tool_fn:
+                tool_args = _coerce_args(tool_fn, tool_args)
+                result = tool_fn(**tool_args)
+            else:
+                result = {"success": False, "error": f"Tool not found: {tool_name}"}
 
             # Confirmation required — not a failure, relay the message and stop
             if result.get("requires_confirmation"):

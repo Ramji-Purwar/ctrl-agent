@@ -5,6 +5,10 @@ from gmail.categorizer import categorize_emails
 
 
 def check_emails(category: str = "action_required", limit: int = 10) -> dict:
+    try:
+        limit = int(limit)
+    except (ValueError, TypeError):
+        limit = 10
 
     try:
         new_emails = fetch_new_emails()
@@ -44,6 +48,11 @@ def show_recent_emails(limit: int = 10, category: str = "all") -> dict:
     """
     Show emails from the local cache.
     """
+    try:
+        limit = int(limit)
+    except (ValueError, TypeError):
+        limit = 10
+
     try:
         emails = get_cached_emails(limit=limit * 3)
 
@@ -98,6 +107,11 @@ def _format_emails(emails: list[dict]) -> list[dict]:
 
 def search_emails(query: str, limit: int = 10) -> dict:
     """Search Gmail with any query. Never touches the unread cache."""
+    try:
+        limit = int(limit)
+    except (ValueError, TypeError):
+        limit = 10
+
     try:
         emails = query_emails(query=query, limit=limit)
         if not emails:

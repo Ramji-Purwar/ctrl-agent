@@ -10,29 +10,117 @@
 <body>
   <div id="app">
 
-    <div id="messages">
-      <div id="welcome">
-        <span class="hl">ctrl-agent</span> — type <span class="hl">'help'</span> for commands, <span class="hl">'clear'</span> to reset
-      </div>
-      <!-- message groups injected here by chat.js -->
-    </div>
+    <!-- ── Top bar ── -->
+    <div id="topbar">
+      <span id="topbar-title">ctrl-agent</span>
+      <div id="topbar-right">
+        <div id="status-pill">
+          <div id="status-dot"></div>
+          <span id="status-text">ready</span>
+        </div>
 
-    <div id="input-area">
-      <div id="input-row">
-        <span class="prompt-sym2">›</span>
-        <textarea
-          id="input"
-          rows="1"
-          autocomplete="off"
-          spellcheck="false"
-          placeholder="type a command…"
-        ></textarea>
-        <button id="send-btn" title="Send (Enter)">
-          <i class="ti ti-arrow-up" aria-hidden="true"></i>
+        <button id="tasks-toggle-btn" title="Toggle Tasks sidebar">
+          <i id="tasks-toggle-icon" class="ti ti-mail" aria-hidden="true"></i>
+          <span id="tasks-badge" class="badge hidden">0</span>
         </button>
-      </div>      
+
+        <button id="clear-btn" title="Clear history (Ctrl+L)">
+          <i class="ti ti-trash" aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
 
+    <!-- ── Main layout: chat + sidebar ── -->
+    <div id="main-layout">
+
+      <!-- Chat panel -->
+      <div id="chat-panel">
+        <div id="messages">
+          <div id="welcome">
+            <span class="hl">ctrl-agent</span> — type <span class="hl">'help'</span> for commands, <span class="hl">'clear'</span> to reset
+          </div>
+          <!-- message groups injected here by chat.js -->
+        </div>
+
+        <div id="input-area">
+          <div id="input-row">
+            <span class="prompt-sym2">›</span>
+            <textarea
+              id="input"
+              rows="1"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="type a command…"
+            ></textarea>
+            <button id="send-btn" title="Send (Enter)">
+              <i class="ti ti-arrow-up" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tasks sidebar (hidden by default) -->
+      <div id="tasks-sidebar" class="hidden">
+        <div id="tasks-header">
+          <div id="tasks-header-left">
+            <i class="ti ti-mail" aria-hidden="true"></i>
+            <span>Tasks</span>
+          </div>
+          <div id="tasks-header-right">
+            <div id="tasks-connection-dot"></div>
+            <span id="tasks-connection-label">connecting…</span>
+          </div>
+        </div>
+
+        <div id="tasks-status-bar">
+          <div id="tasks-last-check">
+            <i class="ti ti-clock" aria-hidden="true"></i>
+            <span id="tasks-last-check-text">No checks yet</span>
+          </div>
+          <div id="tasks-email-count">
+            <i class="ti ti-mail" aria-hidden="true"></i>
+            <span id="tasks-email-count-text">0 tasks</span>
+          </div>
+        </div>
+
+        <div id="tasks-email-list">
+          <div id="tasks-empty-state">
+            <i class="ti ti-inbox-off"></i>
+            <p>No action items yet</p>
+            <span>Emails requiring your attention will appear here</span>
+          </div>
+        </div>
+
+        <!-- Summary area -->
+        <div id="tasks-summary-area" class="hidden">
+          <div id="tasks-summary-header">
+            <i class="ti ti-sparkles" aria-hidden="true"></i>
+            <span>Summary</span>
+            <button id="tasks-summary-close" title="Close summary">
+              <i class="ti ti-x" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div id="tasks-summary-text"></div>
+        </div>
+
+        <!-- Action bar -->
+        <div id="tasks-action-bar">
+          <button class="tasks-action-btn primary" data-action="check_now" title="Check Gmail now">
+            <i class="ti ti-refresh" aria-hidden="true"></i>
+            <span>Check</span>
+          </button>
+          <button class="tasks-action-btn" data-action="summarize_emails" title="AI summary">
+            <i class="ti ti-sparkles" aria-hidden="true"></i>
+            <span>Summarize</span>
+          </button>
+          <button class="tasks-action-btn danger" data-action="clear_notifications" title="Clear all">
+            <i class="ti ti-trash" aria-hidden="true"></i>
+            <span>Clear</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
   </div>
   <script src="chat.js"></script>
 </body>

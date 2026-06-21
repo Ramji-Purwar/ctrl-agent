@@ -1,7 +1,7 @@
 import logging
 from flask import Blueprint, request, jsonify, send_from_directory
 from core.agent_loop import run_agent
-from config.settings import get_base_dir, reset_base_dir, set_base_dir
+from config.settings import get_base_dir, reset_base_dir, set_base_dir, resource_path, CONVERSATION_FILE
 import os
 import json
 
@@ -9,12 +9,32 @@ chat_bp = Blueprint("chat", __name__)
 
 logger = logging.getLogger(__name__)
 
+# ── Show-chat activation callback (set by run_chat.py) ──────────
+_show_chat_callback = None
+
+
+def register_show_chat_callback(cb):
+    global _show_chat_callback
+    _show_chat_callback = cb
+
 
 @chat_bp.route("/")
 def index():
-
-    chat_ui_dir = os.path.join(os.path.dirname(__file__), "..", "chat_ui")
+    chat_ui_dir = resource_path("chat_ui")
     return send_from_directory(chat_ui_dir, "index.html")
+
+
+@chat_bp.route("/show-chat", methods=["POST"])
+def show_chat_endpoint():
+    """Called by a second instance to activate the running window."""
+    if _show_chat_callback:
+        try:
+            _show_chat_callback()
+            return jsonify({"success": True}), 200
+        except Exception as e:
+            logger.error(f"[Chat] show-chat callback failed: {e}")
+            return jsonify({"error": str(e)}), 500
+    return jsonify({"error": "Callback not registered"}), 500
 
 
 @chat_bp.route("/chat", methods=["POST"])
@@ -64,7 +84,7 @@ def health():
 def clear_chat():
     """Clear the chat history."""
     try:
-        conversation_file = os.path.join(os.path.dirname(__file__), "..", "data", "conversation.json")
+        conversation_file = CONVERSATION_FILE
         
         # Clear the conversation file
         with open(conversation_file, "w") as f:

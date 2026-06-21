@@ -1,9 +1,25 @@
+// ── DOM refs (chat) ─────────────────────────────────────────────
 const messagesEl = document.getElementById("messages");
 const inputEl    = document.getElementById("input");
 const sendBtn    = document.getElementById("send-btn");
 const clearBtn   = document.getElementById("clear-btn");
 const statusPill = document.getElementById("status-pill");
 const statusText = document.getElementById("status-text");
+const chatPanel  = document.getElementById("chat-panel");
+
+// ── DOM refs (tasks sidebar) ────────────────────────────────────
+const tasksSidebar       = document.getElementById("tasks-sidebar");
+const tasksToggleBtn     = document.getElementById("tasks-toggle-btn");
+const tasksToggleIcon    = document.getElementById("tasks-toggle-icon");
+const tasksBadge         = document.getElementById("tasks-badge");
+const tasksEmailList     = document.getElementById("tasks-email-list");
+const tasksConnDot       = document.getElementById("tasks-connection-dot");
+const tasksConnLabel     = document.getElementById("tasks-connection-label");
+const tasksLastCheckText = document.getElementById("tasks-last-check-text");
+const tasksEmailCountText= document.getElementById("tasks-email-count-text");
+const tasksSummaryArea   = document.getElementById("tasks-summary-area");
+const tasksSummaryText   = document.getElementById("tasks-summary-text");
+const tasksSummaryClose  = document.getElementById("tasks-summary-close");
 
 let busy = false;
 
@@ -47,7 +63,7 @@ inputEl.addEventListener("keydown", (e) => {
 });
 
 sendBtn.addEventListener("click", handleInput);
-clearBtn.addEventListener("click", clearTerminal);
+if (clearBtn) clearBtn.addEventListener("click", clearTerminal);
 
 function setInput(val) {
   inputEl.value = val;
@@ -230,6 +246,7 @@ function toolClass(name) {
 function toolIcon(name) {
   const n = name.toLowerCase();
   if (n.includes("git"))    return "ti-brand-git";
+  if (n.includes("mail") || n.includes("email")) return "ti-mail";
   if (n.includes("file") || n.includes("read")) return "ti-file";
   if (n.includes("find") || n.includes("search")) return "ti-search";
   if (n.includes("run") || n.includes("exec") || n.includes("bash") || n.includes("shell")) return "ti-terminal";
@@ -288,5 +305,331 @@ function parseCdCommand(text) {
   return text.slice("cd".length).trim();
 }
 
-// Focus on load
-window.addEventListener("load", () => inputEl.focus());
+
+/* ═══════════════════════════════════════════════════════════════
+   TASKS SIDEBAR — SSE + rendering
+   ═══════════════════════════════════════════════════════════════ */
+
+let taskEmails = [];
+let sseSource  = null;
+
+// ── Toggle sidebar ──────────────────────────────────────────────
+function toggleTasksSidebar(forceShow) {
+  const isHidden = tasksSidebar.classList.contains("hidden");
+  const shouldShow = forceShow !== undefined ? forceShow : isHidden;
+
+  if (shouldShow) {
+    tasksSidebar.classList.remove("hidden");
+    chatPanel.classList.add("hidden");
+    tasksToggleBtn.classList.add("active");
+    if (tasksToggleIcon) {
+      tasksToggleIcon.className = "ti ti-messages";
+    }
+    tasksToggleBtn.title = "Open Chat";
+  } else {
+    tasksSidebar.classList.add("hidden");
+    chatPanel.classList.remove("hidden");
+    tasksToggleBtn.classList.remove("active");
+    if (tasksToggleIcon) {
+      tasksToggleIcon.className = "ti ti-mail";
+    }
+    tasksToggleBtn.title = "Open Tasks";
+  }
+}
+
+if (tasksToggleBtn) {
+  tasksToggleBtn.addEventListener("click", () => toggleTasksSidebar());
+}
+
+// ── SSE connection ──────────────────────────────────────────────
+function connectTasksSSE() {
+  if (sseSource) {
+    try { sseSource.close(); } catch (_) {}
+  }
+
+  sseSource = new EventSource("/events");
+
+  sseSource.onopen = () => {
+    setTasksConnection("connected", "connected");
+  };
+
+  sseSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      handleTaskEvent(data);
+    } catch (e) {
+      console.error("[Tasks] Bad SSE data:", e);
+    }
+  };
+
+  sseSource.onerror = () => {
+    setTasksConnection("error", "reconnecting…");
+  };
+}
+
+function handleTaskEvent(data) {
+  switch (data.type) {
+    case "new_emails":
+      addTaskEmails(data.emails || []);
+      break;
+    case "remove_email":
+      if (data.email_id) {
+        taskEmails = taskEmails.filter(e => e.id !== data.email_id);
+        renderTaskEmails();
+        updateTaskBadge();
+      }
+      break;
+    case "check_started":
+      setTasksConnection("checking", "checking…");
+      break;
+    case "check_done":
+      setTasksConnection("connected", "connected");
+      if (data.time && tasksLastCheckText) {
+        tasksLastCheckText.textContent = formatTaskTime(data.time);
+      }
+      break;
+    case "auth_error":
+      setTasksConnection("error", "auth expired");
+      showTaskNotice("Gmail auth expired. Open chat and re-authenticate.");
+      break;
+    case "error":
+      showTaskNotice(data.message || "Unknown error");
+      break;
+    case "clear":
+      clearTaskEmails();
+      break;
+    default:
+      console.log("[Tasks] Unknown event:", data);
+  }
+}
+
+// ── Email rendering ─────────────────────────────────────────────
+function addTaskEmails(newEmails) {
+  const existingIds = new Set(taskEmails.map(e => e.id));
+  const unique = newEmails.filter(e => !existingIds.has(e.id));
+  if (unique.length === 0) return;
+
+  taskEmails = [...taskEmails, ...unique];
+  renderTaskEmails();
+  updateTaskBadge();
+}
+
+function clearTaskEmails() {
+  taskEmails = [];
+  renderTaskEmails();
+  updateTaskBadge();
+  hideTaskSummary();
+}
+
+function renderTaskEmails() {
+  if (!tasksEmailList) return;
+
+  if (tasksEmailCountText) {
+    tasksEmailCountText.textContent = `${taskEmails.length} task${taskEmails.length !== 1 ? "s" : ""}`;
+  }
+
+  tasksEmailList.innerHTML = "";
+
+  if (taskEmails.length === 0) {
+    tasksEmailList.innerHTML = `
+      <div id="tasks-empty-state">
+        <i class="ti ti-inbox-off"></i>
+        <p>No action items yet</p>
+        <span>Emails requiring your attention will appear here</span>
+      </div>
+    `;
+    return;
+  }
+
+  const ul = document.createElement("ul");
+  ul.className = "tasks-list";
+
+  const sorted = [...taskEmails].reverse();
+  sorted.forEach((email, idx) => {
+    const li = document.createElement("li");
+    li.className = "tasks-item";
+    li.style.animationDelay = `${idx * 0.03}s`;
+
+    const dateStr = email.date ? formatEmailDate(email.date) : "";
+    const gmailUrl = `https://mail.google.com/mail/u/0/#inbox/${encodeURIComponent(email.id)}`;
+    const senderShort = (email.sender || "unknown").split("@")[0];
+
+    li.innerHTML = `
+      <span class="tasks-bullet">•</span>
+      <a class="tasks-link" href="${gmailUrl}" target="_blank" title="Open in Gmail">
+        <span class="tasks-subject">${escHtml(email.subject || "(no subject)")}</span>
+        <span class="tasks-meta">
+          <span class="tasks-sender">${escHtml(senderShort)}</span>
+          ${dateStr ? `<span class="tasks-sep">·</span><span class="tasks-date">${escHtml(dateStr)}</span>` : ""}
+        </span>
+      </a>
+      <button class="tasks-remove-btn" data-id="${email.id}" title="Mark as Done (Remove task)">
+        <i class="ti ti-check"></i>
+      </button>
+      <a class="tasks-open" href="${gmailUrl}" target="_blank" title="Open in Gmail">
+        <i class="ti ti-external-link"></i>
+      </a>
+    `;
+
+    ul.appendChild(li);
+  });
+
+  tasksEmailList.appendChild(ul);
+
+  // Bind individual remove buttons
+  tasksEmailList.querySelectorAll(".tasks-remove-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const emailId = btn.dataset.id;
+      triggerTaskRemove(emailId, btn);
+    });
+  });
+}
+
+function updateTaskBadge() {
+  if (!tasksBadge) return;
+  if (taskEmails.length > 0) {
+    tasksBadge.textContent = taskEmails.length;
+    tasksBadge.classList.remove("hidden");
+  } else {
+    tasksBadge.classList.add("hidden");
+  }
+}
+
+// ── Action buttons ──────────────────────────────────────────────
+document.querySelectorAll(".tasks-action-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const action = btn.dataset.action;
+    if (!action || btn.disabled) return;
+    triggerTaskAction(action, btn);
+  });
+});
+
+async function triggerTaskAction(action, btn) {
+  btn.classList.add("loading");
+  btn.disabled = true;
+
+  try {
+    const res = await fetch("/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (action === "summarize_emails" && data.result) {
+      showTaskSummary(data.result);
+    }
+
+    if (action === "clear_notifications") {
+      clearTaskEmails();
+    }
+
+  } catch (err) {
+    console.error(`[Tasks] Action '${action}' failed:`, err);
+    showTaskNotice(`Action failed: ${err.message}`);
+  } finally {
+    btn.classList.remove("loading");
+    btn.disabled = false;
+  }
+}
+
+async function triggerTaskRemove(emailId, btn) {
+  btn.disabled = true;
+  btn.style.opacity = 0.5;
+
+  try {
+    const res = await fetch("/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "remove_email", email_id: emailId }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!data.success) {
+      console.error("[Tasks] Remove failed:", data.error || "Unknown error");
+      showTaskNotice(data.error || "Failed to remove task");
+      btn.disabled = false;
+      btn.style.opacity = 1.0;
+    } else {
+      // Local removal (fallback if SSE delay occurs)
+      taskEmails = taskEmails.filter(e => e.id !== emailId);
+      renderTaskEmails();
+      updateTaskBadge();
+    }
+  } catch (err) {
+    console.error("[Tasks] Remove failed:", err);
+    showTaskNotice(`Failed to remove task: ${err.message}`);
+    btn.disabled = false;
+    btn.style.opacity = 1.0;
+  }
+}
+
+// ── Summary panel ───────────────────────────────────────────────
+function showTaskSummary(text) {
+  if (tasksSummaryText) tasksSummaryText.textContent = text;
+  if (tasksSummaryArea) tasksSummaryArea.classList.remove("hidden");
+}
+
+function hideTaskSummary() {
+  if (tasksSummaryArea) tasksSummaryArea.classList.add("hidden");
+  if (tasksSummaryText) tasksSummaryText.textContent = "";
+}
+
+if (tasksSummaryClose) {
+  tasksSummaryClose.addEventListener("click", hideTaskSummary);
+}
+
+// ── Notifications (in-sidebar) ──────────────────────────────────
+function showTaskNotice(msg) {
+  if (!tasksEmailList) return;
+  const notice = document.createElement("div");
+  notice.className = "tasks-notice-bar";
+  notice.innerHTML = `
+    <i class="ti ti-alert-triangle"></i>
+    <span>${escHtml(msg)}</span>
+  `;
+  tasksEmailList.prepend(notice);
+  setTimeout(() => { if (notice.parentNode) notice.remove(); }, 10000);
+}
+
+// ── Connection indicator ────────────────────────────────────────
+function setTasksConnection(state, label) {
+  if (tasksConnDot) {
+    tasksConnDot.className = "";
+    tasksConnDot.classList.add(state);
+  }
+  if (tasksConnLabel) tasksConnLabel.textContent = label;
+}
+
+// ── Utilities ───────────────────────────────────────────────────
+function formatTaskTime(isoString) {
+  try {
+    const d = new Date(isoString);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return isoString;
+  }
+}
+
+function formatEmailDate(dateStr) {
+  try {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diff = now - d;
+
+    if (diff < 60000)       return "now";
+    if (diff < 3600000)     return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000)    return `${Math.floor(diff / 3600000)}h ago`;
+    if (diff < 604800000)   return `${Math.floor(diff / 86400000)}d ago`;
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
+// ── Init ────────────────────────────────────────────────────────
+window.addEventListener("load", () => {
+  inputEl.focus();
+  connectTasksSSE();
+});

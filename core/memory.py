@@ -1,8 +1,9 @@
 import json
 import logging
 from pathlib import Path
+from config.settings import CONVERSATION_FILE
 
-HISTORY_FILE = Path("data/conversation.json")
+HISTORY_FILE = Path(CONVERSATION_FILE)
 MAX_TURNS = 10
 
 def load_history() -> list:

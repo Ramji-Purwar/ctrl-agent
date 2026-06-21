@@ -9,10 +9,10 @@ import json
 import logging
 import time
 from pathlib import Path
-
 from core.api_pool import call_llm
+from config.settings import GMAIL_RULES_FILE
 
-RULES_FILE = Path("data/rules.json")
+RULES_FILE = Path(GMAIL_RULES_FILE)
 
 _DEFAULT_RULES = {
     "always_action_required": [],
