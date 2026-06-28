@@ -1,12 +1,13 @@
 # ctrl-agent
 
-A minimal Windows background application for background Gmail monitoring, local file operations, and GitHub tools.
+A powerful Windows background application that automates Gmail triage, local file operations, and GitHub workflows—all accessible via a natural-language chat widget. **ctrl-agent** also acts as a native **Model Context Protocol (MCP) Server**, allowing external LLM clients like Claude Desktop to securely interact with your local environment.
 
 ## What it does
 
-- **Intelligent Gmail Monitoring:** Runs in the background to monitor your inbox, automatically identifying and sorting important emails into actionable tasks while filtering out non-essential mail.
-- **Secure Local File Operations:** Provides streamlined tools to find, read, and open whitelisted files and folders, keeping system management scoped to your configured base directory.
-- **Integrated GitHub Tools:** View repository status, review commits, push/pull changes, manage branches, and interact with remote repositories easily.
+- **Intelligent Gmail Monitoring:** Runs in the background to monitor your inbox, using a two-pass classification engine (rules + Groq API) to sort emails into actionable tasks, filtering out non-essential mail.
+- **Secure Local File Operations:** Provides streamlined tools to find, read, and manage whitelisted files and folders, keeping system operations securely scoped to your configured base directory.
+- **Integrated GitHub Tools:** View repository status, review commits, manage branches, and push/pull changes directly from the agent's interface.
+- **Native MCP Server:** Exposes your local tools to external AI clients. Watch as Claude Desktop autonomously runs Git commands or searches your files, with all actions streamed live to your `ctrl-agent` widget via Server-Sent Events (SSE).
 
 ## Requirements
 
@@ -86,14 +87,45 @@ python startup.py status      # Check current shortcut state
 - **Task Done Button ($\checkmark$)** — Mark a task as completed (removes it from the active sidebar task listing and updates its category in the cache to `"info"`).
 - **System Tray Icon** — Right-click to completely `Quit` the application or manually trigger an email check.
 
+## Model Context Protocol (MCP) Integration
+
+This project includes a native MCP server (`mcp_server.py`) that allows external LLM clients (such as **Claude Desktop**) to directly invoke all `ctrl-agent` tools.
+
+When Claude calls a tool via the MCP server:
+1. The tool executes locally (e.g., performing a Git command, searching files, or calling Gmail).
+2. The MCP server notifies the running `ctrl-agent` Flask application via `POST /mcp-event`.
+3. The activity is instantly displayed in your `ctrl-agent` chat/task window, so you can track Claude's actions in real-time.
+
+### Claude Desktop Configuration
+
+Add the following to your `claude_desktop_config.json` (located at `%APPDATA%\Claude\claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "ctrl-agent": {
+      "command": "C:\\Users\\r4849\\Desktop\\ctrl-agent\\venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\Users\\r4849\\Desktop\\ctrl-agent\\mcp_server.py"
+      ]
+    }
+  }
+}
+```
+
+*Note: Make sure to adjust the paths if your project location or Python environment is different.*
+
 ## Architecture
 
 - **Backend:** Python + Flask (API and static serving), Pywebview (UI window), APScheduler (background tasks), Pystray (system tray).
 - **Frontend:** Vanilla HTML/JS/CSS (`chat_ui/`), Server-Sent Events (SSE) for live task updates.
 - **Single-instance:** Launching a second instance will detect the running process and activate the existing window.
+- **MCP Server:** Python + stdio transport for direct LLM integration.
 
 ## Troubleshooting
 
 - **"No GROQ API key found"** — check your `.env` file exists in the project root and the variable names match exactly.
 - **File or folder operation fails silently** — the target path is likely outside `BASE_DIR`. Check the value set in `.env` and confirm the path is inside it.
 - **Access is denied during build** — `ctrl-agent.exe` is currently running in the background. Right-click the system tray icon, select "Quit", and run `python build.py` again.
+- **MCP Server connection errors in Claude Desktop** — Check the logs at `data/mcp_server.log` for any startup or tool execution errors. Make sure the virtual environment has all the packages from `requirements.txt` installed.
+

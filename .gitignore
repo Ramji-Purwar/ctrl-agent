@@ -26,3 +26,5 @@ issues.txt
 build/
 dist/
 *.spec
+
+mcp_server.log

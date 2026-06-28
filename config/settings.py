@@ -106,12 +106,14 @@ GROQ_KEYS = [
     os.getenv("GROQ_API_KEY_2", "").strip(),
     os.getenv("GROQ_API_KEY_3", "").strip(),
     os.getenv("GROQ_API_KEY_4", "").strip(),
+    os.getenv("GROQ_API_KEY_5", "").strip(),
 ]
+
 GROQ_KEYS = [key for key in GROQ_KEYS if key]
 
 if not GROQ_KEYS:
     raise ValueError(
-        "No GROQ API key found. Set GROQ_API_KEY_1..GROQ_API_KEY_4 in .env"
+        "No GROQ API key found. Set GROQ_API_KEY_1..GROQ_API_KEY_5 in .env"
     )
 
 for key in GROQ_KEYS:

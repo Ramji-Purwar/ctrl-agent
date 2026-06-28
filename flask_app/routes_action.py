@@ -68,3 +68,19 @@ def handle_action():
             return jsonify({"result": f"Failed: {e}", "success": False}), 500
 
     return jsonify({"error": f"Unknown action: {action}"}), 400
+
+
+@action_bp.route("/mcp-event", methods=["POST"])
+def handle_mcp_event():
+    """
+    Receive tool execution events from an external MCP server 
+    and push them to the widget SSE queue.
+    """
+    data = request.get_json(silent=True) or {}
+    
+    # Must have a type. Expecting 'mcp_tool_call'
+    if "type" not in data:
+        return jsonify({"error": "Missing 'type' field"}), 400
+        
+    push_event(data)
+    return jsonify({"success": True})

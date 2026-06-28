@@ -398,6 +398,14 @@ function handleTaskEvent(data) {
     case "clear":
       clearTaskEmails();
       break;
+    case "mcp_tool_call":
+      appendGroup(
+        `Claude: ${data.tool}`,
+        data.result ? (typeof data.result === 'string' ? data.result : JSON.stringify(data.result, null, 2)) : "Executed successfully",
+        [data.tool],
+        data.success !== undefined ? data.success : true
+      );
+      break;
     default:
       console.log("[Tasks] Unknown event:", data);
   }

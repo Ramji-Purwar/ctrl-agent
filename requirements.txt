@@ -8,3 +8,4 @@ google-api-python-client
 apscheduler
 pystray
 pillow
+mcp

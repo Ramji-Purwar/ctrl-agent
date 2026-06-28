@@ -72,6 +72,11 @@ def _build_system_prompt() -> str:
         "    specific lookup — it searches all mail. Use check_emails only for fetching "
         "    new unread emails for the scheduler. Never say emails are not found without "
         "    first calling search_emails with the right query. "
+        "12. For git_clone: NEVER guess the dest_path. If the user says 'clone into X' or 'clone in X', "
+        "    always call find_folder first to get the exact full path of X, then use that result as dest_path. "
+        "    The dest_path must be the full resolved path INCLUDING the repo name as the final folder "
+        "    (e.g. if cloning into Downloads, dest_path = <Downloads full path>/<repo-name>). "
+        "    Never pass a bare folder like 'Downloads' — always resolve it first. "
     )
 
 _MALFORMED_PATTERNS = ["<function=", "<function ", "</function>"]
@@ -162,6 +167,23 @@ def run_agent(user_message: str) -> dict:
             )
         except Exception as e:
             err = str(e)
+
+            # 413: conversation too long — trim oldest messages and retry
+            if "413" in err or "too large" in err.lower() or "request_too_large" in err.lower():
+                # Keep at least the last user message; drop oldest 4 messages
+                if len(history) > 4:
+                    trimmed = len(history) // 4  # drop 25% of history
+                    history = history[trimmed:]
+                    logging.warning(
+                        f"[Agent][Iter {iteration}] Payload too large — "
+                        f"trimmed {trimmed} oldest messages, retrying..."
+                    )
+                    continue
+                else:
+                    logging.error(f"[Agent][Iter {iteration}] Payload too large even with minimal history.")
+                    return {"response": "Your request is too large to process. Try clearing the chat history.",
+                            "tools_used": tools_used, "success": False}
+
             is_format_error = (
                 "tool_use_failed"             in err or
                 "Failed to call a function"   in err or

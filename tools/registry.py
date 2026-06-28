@@ -442,9 +442,12 @@ TOOL_SCHEMAS = [
             "name": "git_clone",
             "description": (
                 "Clone a remote git repository to a specified local path. "
+                "IMPORTANT: If the user mentions a destination folder by name (e.g. 'Downloads', 'Desktop', 'projects'), "
+                "you MUST call find_folder first to get its exact full path — never guess it. "
+                "dest_path must be the full resolved path INCLUDING the repo name appended at the end "
+                "(e.g. C:\\Users\\r4849\\Downloads\\my-repo). "
                 "If the user gives only a repo name and says it is from 'my GitHub', build the URL from "
-                "the configured GitHub username in the system prompt: "
-                "https://github.com/<configured-username>/<repo-name>.git."
+                "the configured GitHub username: https://github.com/<configured-username>/<repo-name>.git."
             ),
             "parameters": {
                 "type": "object",
@@ -455,7 +458,10 @@ TOOL_SCHEMAS = [
                     },
                     "dest_path": {
                         "type": "string",
-                        "description": "Local path where the repository should be cloned."
+                        "description": (
+                            "Full absolute local path where the repository should be cloned, including the repo folder name. "
+                            "NEVER guess this path — always call find_folder first to resolve any named folder like 'Downloads' or 'Desktop'."
+                        )
                     }
                 },
                 "required": ["url", "dest_path"]
